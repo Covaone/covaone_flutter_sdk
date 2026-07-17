@@ -1,0 +1,28 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="com.covaone.covaone_sdk">
+
+    <!--
+      Permissions merged into host apps that depend on this plugin.
+      Keep in sync with README "Platform setup".
+    -->
+
+    <!-- Networking (REST, Socket.IO, image cache) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <!-- flutter_webrtc voice calls -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <!-- Declared for flutter_webrtc; also used by image_picker camera attachments -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Bluetooth headsets during calls (Android 11 and below) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
+
+    <!-- Hardware is optional: audio-only calls work without a camera -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+
+</manifest>
