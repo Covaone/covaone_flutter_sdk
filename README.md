@@ -151,8 +151,6 @@ void main() async {
 
   await CovaoneChat.init(
     publicKey: 'your-public-key',
-    apiBase: 'https://api.covaone.com/',
-    wsBase:  'wss://wss-v.covaone.com/',
     // Optional — skip the in-chat lead-capture form when you already know
     // the signed-in user's identity:
     // userEmail: 'user@example.com',
@@ -203,8 +201,6 @@ If your app already knows who is signed in, you can pass email and full name at 
 ```dart
 await CovaoneChat.init(
   publicKey: 'your-public-key',
-  apiBase: 'https://api.covaone.com/',
-  wsBase: 'wss://wss-v.covaone.com/',
   userEmail: 'jane@example.com',
   userFullName: 'Jane Doe',
 );
@@ -306,8 +302,6 @@ Enabled by default during `CovaoneChat.init()` through:
 ```dart
 await CovaoneChat.init(
   publicKey: 'your-public-key',
-  apiBase: 'https://api.covaone.com/',
-  wsBase: 'wss://wss-v.covaone.com/',
   autoIntercept: true, // default
 );
 ```
@@ -380,9 +374,7 @@ Pass these optional parameters to `CovaoneChat.init(...)`:
 ```dart
 await CovaoneChat.init(
   publicKey: 'your-public-key',
-  apiBase: 'https://api.covaone.com/',
-  wsBase: 'wss://wss-v.covaone.com/',
-
+  
   // Optional help-card settings:
   helpCardPosition: CovaoneHelpCardPosition.top,
   helpCardColor: const Color(0xFF1A1A1A), // omit to use company colour
