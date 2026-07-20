@@ -6,7 +6,6 @@ import 'package:covaone_sdk/src/model/api_response.dart';
 import 'package:covaone_sdk/src/model/session.dart';
 import 'package:covaone_sdk/widgets/common/smart_dialog.dart';
 
-import 'src/model/initializer_model.dart';
 import 'src/request/services/initializer.dart';
 import 'src/services/vplatform_interface.dart';
 import 'src/widgets/base.dart';

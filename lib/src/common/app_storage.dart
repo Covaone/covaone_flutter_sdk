@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:covaone_sdk/src/model/storage_model.dart';
 
@@ -6,8 +5,8 @@ class AppStorage {
   final storage = new FlutterSecureStorage();
 
   AndroidOptions _getAndroidOptions() => const AndroidOptions(
-    encryptedSharedPreferences: true,
-  );
+        encryptedSharedPreferences: true,
+      );
 
   // To save a key to flutter secure storage
   Future<String> saveKey({required String key, required String value}) async {
@@ -19,7 +18,10 @@ class AppStorage {
   // To save multiple values
   Future<void> saveMany({List<StorageModel>? list}) async {
     // TODO: Write AES encryption for all saved items here
-    list?.forEach((element) async => await storage.write(key: element.key, value: element.value, aOptions: _getAndroidOptions()));
+    list?.forEach((element) async => await storage.write(
+        key: element.key,
+        value: element.value,
+        aOptions: _getAndroidOptions()));
     return;
   }
 
@@ -31,7 +33,8 @@ class AppStorage {
 
   // To check if a key exist
   Future<bool> doesExists({required String key}) async {
-    bool exist = await storage.containsKey(key: key, aOptions: _getAndroidOptions());
+    bool exist =
+        await storage.containsKey(key: key, aOptions: _getAndroidOptions());
     return exist;
   }
 
