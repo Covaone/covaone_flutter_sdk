@@ -392,44 +392,6 @@ await CovaoneChat.destroy();
 
 ---
 
-## Architecture overview
-
-```
-lib/
-├── covaone_chat.dart          ← public facade + barrel exports
-└── src/
-    ├── blocs/
-    │   ├── session/          ← session lifecycle, profile
-    │   ├── chat/             ← unified ChatState (messages, typing, tabs)
-    │   ├── broadcast/        ← announcements
-    │   ├── faq/              ← FAQ articles
-    │   └── call/             ← CallState (idle|ringing|active|ended)
-    ├── data/
-    │   ├── local/            ← SharedPreferences session storage
-    │   ├── models/           ← Equatable data models
-    │   ├── remote/           ← Dio API client
-    │   └── repositories/     ← Chat, Broadcast, FAQ repositories
-    ├── services/
-    │   ├── socket_service.dart   ← Socket.IO real-time events
-    │   ├── audio_service.dart    ← just_audio ringtone + notifications
-    │   └── webrtc_service.dart   ← flutter_webrtc peer connection
-    ├── core/
-    │   ├── di.dart           ← get_it service locator
-    │   ├── config.dart       ← CovaoneConfig (publicKey, apiBase, wsBase, userEmail, userFullName)
-    │   └── constants.dart    ← socket event names, timeouts
-    └── ui/
-        ├── launcher/         ← CovaoneLauncher overlay + FAB
-        ├── home/             ← home tab + broadcast list
-        ├── broadcast/        ← broadcast detail + popup
-        ├── conversations/    ← conversations tab
-        ├── faq/              ← FAQ list + detail
-        ├── chat/             ← ChatScreen + message bubbles + input bar
-        ├── call/             ← IncomingCallOverlay + ActiveCallOverlay
-        └── shared/           ← CovaoneTheme, shared widgets
-```
-
----
-
 ## Host API error flow
 
 ```

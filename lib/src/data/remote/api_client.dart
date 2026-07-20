@@ -96,6 +96,25 @@ class ApiClient {
     return response.data;
   }
 
+  // ── WebRTC ────────────────────────────────────────────────────────────────
+
+  /// Short-lived TURN/STUN credentials for voice calls.
+  ///
+  /// Must be GET — POST returns 405 on the backend.
+  Future<Map<String, dynamic>> getTurnCredentials({
+    required String sessionId,
+    required String publicKey,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      'webrtc/turn-credentials',
+      queryParameters: {
+        'session_id': sessionId,
+        'public_key': publicKey,
+      },
+    );
+    return _unwrap(response);
+  }
+
   // ── File upload ───────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> uploadFile({

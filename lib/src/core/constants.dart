@@ -56,4 +56,11 @@ abstract final class CovaoneConstants {
   static const String socketPongEvent = 'pong';
   static const String socketCallInviteEvent = 'call_invite';
   static const String socketCallMissedEvent = 'call_missed';
+
+  // ── Voice calls ───────────────────────────────────────────────────────────
+  /// Max time to wait for WebRTC to reach "connected" after the answer SDP.
+  static const Duration callConnectTimeout = Duration(seconds: 30);
+
+  /// Max time an incoming call may ring before auto-declining.
+  static const Duration callRingTimeout = Duration(seconds: 60);
 }

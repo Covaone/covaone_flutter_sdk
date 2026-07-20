@@ -90,3 +90,18 @@ class _CallTickEvent extends CallEvent {
 class _PeerConnectedEvent extends CallEvent {
   const _PeerConnectedEvent();
 }
+
+/// Fired when ICE or the peer connection reaches a failed state.
+class _PeerConnectionFailedEvent extends CallEvent {
+  const _PeerConnectionFailedEvent();
+}
+
+/// Fired when WebRTC does not connect within [CovaoneConstants.callConnectTimeout].
+class _ConnectTimeoutEvent extends CallEvent {
+  const _ConnectTimeoutEvent();
+}
+
+/// Fired when an incoming call rings longer than [CovaoneConstants.callRingTimeout].
+class _RingTimeoutEvent extends CallEvent {
+  const _RingTimeoutEvent();
+}

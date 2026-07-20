@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/chat_controller.dart';
+import '../../core/constants.dart';
 import '../../services/audio_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/webrtc_service.dart';
@@ -25,6 +26,8 @@ class CallBloc extends Bloc<CallEvent, CallState> {
   final WebRtcService _webRtcService;
 
   Timer? _callTimer;
+  Timer? _connectTimeoutTimer;
+  Timer? _ringTimeoutTimer;
 
   /// SDP offer stashed between [IncomingCallEvent] and [AcceptCallEvent].
   Map<String, dynamic>? _pendingSdp;
@@ -54,6 +57,9 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     on<CallMissedEvent>(_onMissed);
     on<_CallTickEvent>(_onTick);
     on<_PeerConnectedEvent>(_onPeerConnected);
+    on<_PeerConnectionFailedEvent>(_onPeerConnectionFailed);
+    on<_ConnectTimeoutEvent>(_onConnectTimeout);
+    on<_RingTimeoutEvent>(_onRingTimeout);
 
     _callInviteSub = _socketService.callInvites.listen(_handleInvite);
     _iceSub = _socketService.iceCandidate.listen(_handleIce);
@@ -108,6 +114,10 @@ class CallBloc extends Bloc<CallEvent, CallState> {
 
     onIncomingCallCallback?.call(event.callId, event.agentName);
 
+    // Warm TURN credentials while the user decides whether to accept.
+    _webRtcService.prefetchTurnCredentials();
+    _startRingTimeout();
+
     // Fire-and-forget: do not await play() — for looped audio just_audio's
     // play() only resolves when stop() is called, so awaiting it would
     // permanently block this handler and prevent any further state changes.
@@ -121,6 +131,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     if (callId == null || room == null) return;
 
     await _audioService.stopRingtone();
+    _cancelRingTimeout();
 
     try {
       await _webRtcService.acceptCall(
@@ -128,7 +139,6 @@ class CallBloc extends Bloc<CallEvent, CallState> {
         callId: callId,
         room: room,
         onIceCandidate: (candidateMap) {
-          // candidateMap is already {candidate: {candidate, sdpMid, sdpMLineIndex}}
           _socketService.emitCallEvent('ice_candidate', {
             'room': room,
             'call_id': callId,
@@ -141,22 +151,24 @@ class CallBloc extends Bloc<CallEvent, CallState> {
           // natively via the platform audio session; no UI rendering needed.
         },
         onPeerConnected: () {
-          // WebRTC ICE negotiation is complete — now safe to start the timer
-          // and show the active call UI. Do NOT do this earlier.
           if (!isClosed) add(const _PeerConnectedEvent());
+        },
+        onPeerConnectionFailed: () {
+          if (!isClosed) add(const _PeerConnectionFailedEvent());
         },
       );
 
       _pendingSdp = null;
 
-      // SDP exchange is done; transition to "connecting" while ICE negotiates.
-      // The timer and active UI are deferred to _onPeerConnected.
+      // SDP exchange is done; stay in "connecting" until WebRTC reaches
+      // "connected" or times out. Do NOT end the call on a short timer here.
       emit(state.copyWith(
         status: CallStatus.connecting,
         durationSeconds: 0,
         isMuted: false,
         error: null,
       ));
+      _startConnectTimeout();
     } catch (e) {
       await _webRtcService.teardown(
           callId: callId, room: room, endReason: 'error');
@@ -168,13 +180,39 @@ class CallBloc extends Bloc<CallEvent, CallState> {
 
   void _onPeerConnected(_PeerConnectedEvent event, Emitter<CallState> emit) {
     if (state.status != CallStatus.connecting) return;
+    _cancelConnectTimeout();
     _startTimer();
     emit(state.copyWith(status: CallStatus.active));
+  }
+
+  Future<void> _onPeerConnectionFailed(
+      _PeerConnectionFailedEvent event, Emitter<CallState> emit) async {
+    if (state.status != CallStatus.connecting) return;
+    await _endCallWithReason(emit, endReason: 'connection_failed');
+  }
+
+  Future<void> _onConnectTimeout(
+      _ConnectTimeoutEvent event, Emitter<CallState> emit) async {
+    if (state.status != CallStatus.connecting) return;
+    await _endCallWithReason(emit, endReason: 'connect_timeout');
+  }
+
+  Future<void> _onRingTimeout(
+      _RingTimeoutEvent event, Emitter<CallState> emit) async {
+    if (state.status != CallStatus.ringing) return;
+    await _audioService.stopRingtone();
+    final callId = state.callId ?? '';
+    final room = state.room ?? '';
+    await _webRtcService.rejectCall(callId: callId, room: room);
+    _cleanup();
+    emit(const CallState(status: CallStatus.ended));
+    await _resetAfterDelay(emit);
   }
 
   Future<void> _onReject(
       RejectCallEvent event, Emitter<CallState> emit) async {
     await _audioService.stopRingtone();
+    _cancelRingTimeout();
     final callId = state.callId ?? '';
     final room = state.room ?? '';
     await _webRtcService.rejectCall(callId: callId, room: room);
@@ -209,6 +247,8 @@ class CallBloc extends Bloc<CallEvent, CallState> {
   Future<void> _onEndedByRemote(
       CallEndedByRemoteEvent event, Emitter<CallState> emit) async {
     await _audioService.stopRingtone();
+    _cancelRingTimeout();
+    _cancelConnectTimeout();
     await _webRtcService.teardown(
       callId: event.callId,
       room: state.room ?? '',
@@ -242,9 +282,53 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     });
   }
 
+  void _startConnectTimeout() {
+    _cancelConnectTimeout();
+    _connectTimeoutTimer = Timer(CovaoneConstants.callConnectTimeout, () {
+      if (!isClosed) add(const _ConnectTimeoutEvent());
+    });
+  }
+
+  void _cancelConnectTimeout() {
+    _connectTimeoutTimer?.cancel();
+    _connectTimeoutTimer = null;
+  }
+
+  void _startRingTimeout() {
+    _cancelRingTimeout();
+    _ringTimeoutTimer = Timer(CovaoneConstants.callRingTimeout, () {
+      if (!isClosed) add(const _RingTimeoutEvent());
+    });
+  }
+
+  void _cancelRingTimeout() {
+    _ringTimeoutTimer?.cancel();
+    _ringTimeoutTimer = null;
+  }
+
+  Future<void> _endCallWithReason(
+    Emitter<CallState> emit, {
+    required String endReason,
+  }) async {
+    final callId = state.callId ?? '';
+    final room = state.room ?? '';
+    _cancelConnectTimeout();
+    await _webRtcService.teardown(
+      callId: callId,
+      room: room,
+      endReason: endReason,
+    );
+    await _audioService.stopRingtone();
+    _cleanup();
+    emit(const CallState(status: CallStatus.ended));
+    await _resetAfterDelay(emit);
+  }
+
   void _cleanup() {
     _callTimer?.cancel();
     _callTimer = null;
+    _cancelConnectTimeout();
+    _cancelRingTimeout();
     _pendingSdp = null;
   }
 

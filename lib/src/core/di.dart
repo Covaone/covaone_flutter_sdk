@@ -15,6 +15,7 @@ import '../data/repositories/faq_repository.dart';
 import '../services/audio_service.dart';
 import '../services/app_api_error_service.dart';
 import '../services/socket_service.dart';
+import '../services/turn_ice_service.dart';
 import '../services/webrtc_service.dart';
 import 'config.dart';
 
@@ -39,8 +40,19 @@ abstract final class CovaoneDI {
     // Eagerly configure the platform audio session so it is ready before the
     // first incoming call or message notification fires.
     unawaited(sl<AudioService>().init());
+    sl.registerLazySingleton<TurnIceService>(
+      () => TurnIceService(
+        apiClient: sl(),
+        sessionStorage: sl(),
+        config: sl(),
+      ),
+    );
     sl.registerLazySingleton<WebRtcService>(
-        () => WebRtcService(socketService: sl()));
+      () => WebRtcService(
+        socketService: sl(),
+        turnIceService: sl(),
+      ),
+    );
 
     // ── Repositories ────────────────────────────────────────────────────────
     sl.registerLazySingleton<ChatRepository>(
@@ -103,6 +115,9 @@ abstract final class CovaoneDI {
     if (sl.isRegistered<AudioService>()) await sl<AudioService>().dispose();
     if (sl.isRegistered<AppApiErrorService>()) {
       sl<AppApiErrorService>().dispose();
+    }
+    if (sl.isRegistered<TurnIceService>()) {
+      sl<TurnIceService>().clearCache();
     }
 
     await sl.reset();

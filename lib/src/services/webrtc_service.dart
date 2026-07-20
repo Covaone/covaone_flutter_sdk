@@ -3,6 +3,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../core/constants.dart';
 import 'socket_service.dart';
+import 'turn_ice_service.dart';
 
 /// Manages the WebRTC peer connection for voice calls.
 ///
@@ -11,41 +12,42 @@ import 'socket_service.dart';
 /// contained here so that [CallBloc] remains focused on UI state only.
 class WebRtcService {
   final SocketService _socketService;
+  final TurnIceService _turnIceService;
 
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
 
-  /// Incoming ICE candidates that arrived before [setRemoteDescription]
-  /// completed. Flushed immediately after the remote description is set.
+  /// Remote ICE candidates that arrived before the peer connection and/or
+  /// [setRemoteDescription] completed. Flushed once both are ready.
   final List<Map<String, dynamic>> _iceCandidateBuffer = [];
   bool _remoteDescriptionSet = false;
+  bool _connectionResolved = false;
 
-  static const Map<String, dynamic> _iceConfig = {
-    'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'},
-      {'urls': 'stun:stun1.l.google.com:19302'},
-    ],
-  };
-
-  WebRtcService({required SocketService socketService})
-      : _socketService = socketService;
+  WebRtcService({
+    required SocketService socketService,
+    required TurnIceService turnIceService,
+  })  : _socketService = socketService,
+        _turnIceService = turnIceService;
 
   // ── Public API ───────────────────────────────────────────────────────────
+
+  /// Warms TURN credentials during ringing so accept can start faster.
+  void prefetchTurnCredentials() => _turnIceService.prefetch();
 
   /// Accepts an incoming call.
   ///
   /// Steps (per signalling contract):
   /// 1. Emit `call_accept` immediately (tells dashboard we are connecting).
-  /// 2. Create RTCPeerConnection with STUN servers.
-  /// 3. Request microphone (audio-only) and add tracks.
+  /// 2. Fetch TURN/STUN iceServers in parallel with microphone access.
+  /// 3. Create RTCPeerConnection with fetched iceServers.
   /// 4. Set the agent's remote SDP offer; flush any buffered ICE candidates.
   /// 5. Create SDP answer, set as local description.
   /// 6. Emit `call_answer` with the answer SDP.
   ///
   /// [onIceCandidate] is called for each local ICE candidate to be forwarded.
   /// [onRemoteStream] is called when the agent's audio track arrives.
-  /// [onPeerConnected] is called when RTCPeerConnectionState reaches
-  ///   "connected" — this is the correct moment to start the call timer.
+  /// [onPeerConnected] is called when the peer connection reaches "connected".
+  /// [onPeerConnectionFailed] is called when ICE/connection state becomes failed.
   Future<void> acceptCall({
     required Map<String, dynamic> remoteSdp,
     required String callId,
@@ -53,7 +55,10 @@ class WebRtcService {
     required void Function(Map<String, dynamic> candidate) onIceCandidate,
     required void Function(MediaStream stream) onRemoteStream,
     required void Function() onPeerConnected,
+    required void Function() onPeerConnectionFailed,
   }) async {
+    _connectionResolved = false;
+
     // 1. Tell the dashboard we are accepting before any async WebRTC work.
     _socketService.emitCallEvent(CovaoneConstants.socketCallAcceptEvent, {
       'room': room,
@@ -61,12 +66,20 @@ class WebRtcService {
       'caller_role': 'customer',
     });
 
-    // 2. Create peer connection.
-    _peerConnection = await createPeerConnection(_iceConfig);
-
-    // 3. Obtain microphone stream and add audio tracks.
-    _localStream = await navigator.mediaDevices
+    // 2. Fetch TURN credentials and microphone in parallel.
+    final iceServersFuture = _turnIceService.fetchTurnIceServers();
+    final mediaFuture = navigator.mediaDevices
         .getUserMedia({'audio': true, 'video': false});
+
+    final results = await Future.wait([iceServersFuture, mediaFuture]);
+    final iceServers = results[0] as List<Map<String, dynamic>>;
+    _localStream = results[1] as MediaStream;
+
+    final iceConfig = <String, dynamic>{'iceServers': iceServers};
+
+    // 3. Create peer connection with TURN/STUN servers.
+    _peerConnection = await createPeerConnection(iceConfig);
+
     for (final track in _localStream!.getTracks()) {
       await _peerConnection!.addTrack(track, _localStream!);
     }
@@ -79,20 +92,26 @@ class WebRtcService {
     };
 
     // Relay local ICE candidates wrapped in the required nested structure.
-    // toMap() returns {candidate, sdpMid, sdpMLineIndex} — nest it under
-    // the "candidate" key as required by the signalling contract.
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
       if (candidate.candidate != null && candidate.candidate!.isNotEmpty) {
         onIceCandidate({'candidate': candidate.toMap()});
       }
     };
 
-    // Fire onPeerConnected when ICE negotiation fully completes.
-    // This is the ONLY correct moment to start the call timer on mobile.
+    _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
+      debugPrint('[Covaone WebRTC] ICE connection state: $state');
+      if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        _notifyConnectionFailed(onPeerConnectionFailed);
+      }
+    };
+
     _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
       debugPrint('[Covaone WebRTC] connection state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-        onPeerConnected();
+        _notifyPeerConnected(onPeerConnected);
+      } else if (state ==
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        _notifyConnectionFailed(onPeerConnectionFailed);
       }
     };
 
@@ -117,14 +136,26 @@ class WebRtcService {
     });
   }
 
+  void _notifyPeerConnected(void Function() onPeerConnected) {
+    if (_connectionResolved) return;
+    _connectionResolved = true;
+    onPeerConnected();
+  }
+
+  void _notifyConnectionFailed(void Function() onPeerConnectionFailed) {
+    if (_connectionResolved) return;
+    _connectionResolved = true;
+    onPeerConnectionFailed();
+  }
+
   /// Adds an ICE candidate received from the remote peer.
   ///
-  /// Candidates arriving before [setRemoteDescription] completes are buffered
-  /// and applied automatically once it is safe to do so. Handles both
-  /// camelCase (`sdpMid`, `sdpMLineIndex`) from browser agents and snake_case
-  /// (`sdp_mid`, `sdp_m_line_index`) from other relay formats.
+  /// Candidates arriving before the peer connection exists or before
+  /// [setRemoteDescription] completes are buffered and applied once both
+  /// are ready. Handles both camelCase (`sdpMid`, `sdpMLineIndex`) from browser
+  /// agents and snake_case (`sdp_mid`, `sdp_m_line_index`) from other relays.
   Future<void> addIceCandidate(Map<String, dynamic> candidateData) async {
-    if (!_remoteDescriptionSet || _peerConnection == null) {
+    if (_peerConnection == null || !_remoteDescriptionSet) {
       _iceCandidateBuffer.add(candidateData);
       return;
     }
@@ -140,9 +171,8 @@ class WebRtcService {
   }
 
   Future<void> _applyIceCandidate(Map<String, dynamic> candidateData) async {
+    if (_peerConnection == null) return;
     try {
-      // The full socket payload wraps the actual ICE fields inside a nested
-      // "candidate" object. Unwrap it; fall back to the flat map for resilience.
       final raw = candidateData['candidate'];
       final Map<String, dynamic> c =
           raw is Map<String, dynamic> ? raw : candidateData;
@@ -159,7 +189,6 @@ class WebRtcService {
         ),
       );
     } catch (e) {
-      // Non-fatal — ICE negotiation continues with remaining candidates.
       debugPrint('[Covaone WebRTC] addIceCandidate error: $e');
     }
   }
@@ -174,7 +203,7 @@ class WebRtcService {
     for (final track in tracks) {
       track.enabled = !wasEnabled;
     }
-    return wasEnabled; // was enabled → now disabled → isMuted = true
+    return wasEnabled;
   }
 
   /// Rejects an incoming call before it is answered.
@@ -199,7 +228,6 @@ class WebRtcService {
     required String room,
     required String endReason,
   }) async {
-    // Stop and dispose local media stream.
     if (_localStream != null) {
       for (final track in _localStream!.getTracks()) {
         await track.stop();
@@ -208,15 +236,13 @@ class WebRtcService {
       _localStream = null;
     }
 
-    // Close and null the peer connection.
     await _peerConnection?.close();
     _peerConnection = null;
 
-    // Reset ICE buffer state for the next call.
     _iceCandidateBuffer.clear();
     _remoteDescriptionSet = false;
+    _connectionResolved = false;
 
-    // Only emit call_end for real call sessions, not on SDK destroy.
     if (callId.isNotEmpty) {
       _socketService.emitCallEvent(CovaoneConstants.socketCallEndEvent, {
         'room': room,
