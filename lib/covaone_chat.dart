@@ -358,6 +358,11 @@ class CovaoneChat {
 
   /// Pushes previously assigned runtime identity to the active SDK session.
   ///
+  /// Behaviour when a session is already loaded:
+  /// - Same email already on the session → no-op (name changes are ignored).
+  /// - Different email → starts a fresh session, then calls `set-profile`.
+  /// - No email yet → calls `set-profile` on the current session.
+  ///
   /// If the session is not ready yet, sync is queued and auto-runs once the
   /// session reaches a profile-accepting state.
   static Future<void> syncUserProfile() async {
@@ -468,6 +473,23 @@ class CovaoneChat {
         state is SessionSettingProfile ||
         state is SessionError) {
       return;
+    }
+
+    if (state is SessionLoaded) {
+      final existingEmail = state.session.email?.trim();
+      if (existingEmail != null && existingEmail.isNotEmpty) {
+        if (existingEmail.toLowerCase() == email.toLowerCase()) {
+          // Same identity already on this session — skip set-profile.
+          _runtimeProfileSyncRequested = false;
+          return;
+        }
+
+        // Different user on this device — wipe session and retry set-profile
+        // once the fresh session reaches SessionProfileFormVisible.
+        _profileSyncInFlight = true;
+        sessionBloc.add(const NewConversationEvent());
+        return;
+      }
     }
 
     if (state is! SessionProfileFormVisible && state is! SessionLoaded) {
