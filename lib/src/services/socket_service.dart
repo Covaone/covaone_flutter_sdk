@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../core/constants.dart';
@@ -19,14 +18,10 @@ class SocketService {
 
   // ── Stream controllers ────────────────────────────────────────────────────
 
-  final _messagesCtrl =
-      StreamController<MessageModel>.broadcast();
-  final _callInvitesCtrl =
-      StreamController<Map<String, dynamic>>.broadcast();
-  final _iceCandidateCtrl =
-      StreamController<Map<String, dynamic>>.broadcast();
-  final _callEndedCtrl =
-      StreamController<Map<String, dynamic>>.broadcast();
+  final _messagesCtrl = StreamController<MessageModel>.broadcast();
+  final _callInvitesCtrl = StreamController<Map<String, dynamic>>.broadcast();
+  final _iceCandidateCtrl = StreamController<Map<String, dynamic>>.broadcast();
+  final _callEndedCtrl = StreamController<Map<String, dynamic>>.broadcast();
 
   // ── Public streams ────────────────────────────────────────────────────────
 
@@ -52,18 +47,17 @@ class SocketService {
           .enableAutoConnect()
           .enableReconnection()
           .setReconnectionAttempts(CovaoneConstants.socketReconnectionAttempts)
-          .setReconnectionDelay(
-              CovaoneConstants.socketReconnectionDelayMs)
+          .setReconnectionDelay(CovaoneConstants.socketReconnectionDelayMs)
           .build(),
     );
 
     _socket!
       ..on('connect', (_) {
-        debugPrint('[Covaone Socket] connected');
+        // debugPrint('[Covaone Socket] connected');
         _emitJoin(sessionId);
       })
       ..on('disconnect', (_) {
-        debugPrint('[Covaone Socket] disconnected');
+        // debugPrint('[Covaone Socket] disconnected');
       })
       ..on(CovaoneConstants.socketSendMessageEvent, _onMessage)
       ..on(CovaoneConstants.socketCallInviteEvent, _onCallInvite)
@@ -117,7 +111,7 @@ class SocketService {
       final model = MessageModel.fromJson(messageData);
       _messagesCtrl.add(model);
     } catch (e) {
-      debugPrint('[Covaone Socket] send_message parse error: $e');
+      // debugPrint('[Covaone Socket] send_message parse error: $e');
     }
   }
 
@@ -125,7 +119,7 @@ class SocketService {
     try {
       _callInvitesCtrl.add(_toMap(data));
     } catch (e) {
-      debugPrint('[Covaone Socket] call_invite parse error: $e');
+      // debugPrint('[Covaone Socket] call_invite parse error: $e');
     }
   }
 
@@ -133,7 +127,7 @@ class SocketService {
     try {
       _iceCandidateCtrl.add(_toMap(data));
     } catch (e) {
-      debugPrint('[Covaone Socket] ice_candidate parse error: $e');
+      // debugPrint('[Covaone Socket] ice_candidate parse error: $e');
     }
   }
 
@@ -141,7 +135,7 @@ class SocketService {
     try {
       _callEndedCtrl.add(_toMap(data));
     } catch (e) {
-      debugPrint('[Covaone Socket] call_end parse error: $e');
+      // debugPrint('[Covaone Socket] call_end parse error: $e');
     }
   }
 
@@ -149,13 +143,14 @@ class SocketService {
 
   void _emitJoin(String sessionId) {
     _socket?.emit(CovaoneConstants.socketJoinEvent, sessionId);
-    debugPrint('[Covaone Socket] joined room $sessionId');
+    // debugPrint('[Covaone Socket] joined room $sessionId');
   }
 
   Map<String, dynamic> _toMap(dynamic data) {
     if (data is Map<String, dynamic>) return data;
     if (data is Map) return data.cast<String, dynamic>();
-    throw FormatException('Unexpected socket payload type: ${data.runtimeType}');
+    throw FormatException(
+        'Unexpected socket payload type: ${data.runtimeType}');
   }
 
   void dispose() {

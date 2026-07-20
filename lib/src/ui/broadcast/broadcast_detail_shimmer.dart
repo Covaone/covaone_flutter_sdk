@@ -22,10 +22,10 @@ class BroadcastDetailShimmer extends StatelessWidget {
               children: [
                 ShimmerBlock(width: w * 0.75, height: 24, borderRadius: 8),
                 const SizedBox(height: 14),
-                Row(
+                const Row(
                   children: [
                     ShimmerBlock(width: 96, height: 28, borderRadius: 20),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     ShimmerBlock(width: 110, height: 28, borderRadius: 20),
                   ],
                 ),
@@ -42,13 +42,16 @@ class BroadcastDetailShimmer extends StatelessWidget {
                     children: [
                       ShimmerBlock(width: w * 0.9, height: 14, borderRadius: 6),
                       const SizedBox(height: 10),
-                      ShimmerBlock(width: w * 0.82, height: 14, borderRadius: 6),
+                      ShimmerBlock(
+                          width: w * 0.82, height: 14, borderRadius: 6),
                       const SizedBox(height: 10),
                       ShimmerBlock(width: w * 0.7, height: 14, borderRadius: 6),
                       const SizedBox(height: 16),
-                      ShimmerBlock(width: w * 0.55, height: 16, borderRadius: 6),
+                      ShimmerBlock(
+                          width: w * 0.55, height: 16, borderRadius: 6),
                       const SizedBox(height: 10),
-                      ShimmerBlock(width: w * 0.88, height: 14, borderRadius: 6),
+                      ShimmerBlock(
+                          width: w * 0.88, height: 14, borderRadius: 6),
                     ],
                   ),
                 ),

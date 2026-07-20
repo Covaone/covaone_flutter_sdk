@@ -1,9 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
-
-// import 'package:dio/dio.dart';
 import 'package:covaone_sdk/src/model/api_response.dart';
 import 'package:covaone_sdk/src/request/handlers/api_handlers.dart';
 import 'package:covaone_sdk/src/request/helper/request_helper.dart';
@@ -30,12 +24,12 @@ class InitializerService implements InitializerHandler {
         data: data,
       );
 
-      debugPrint(">>>>>> data here <<<<<<");
-      debugPrint(response.toString());
+      // debugPrint(">>>>>> data here <<<<<<");
+      // debugPrint(response.toString());
 
       return response;
     } catch (e) {
-      debugPrint(e.toString());
+      // debugPrint(e.toString());
       return ApiResponse.error('An unknown error happen please try again');
     }
   }
@@ -70,8 +64,8 @@ class InitializerService implements InitializerHandler {
         data: data,
       );
 
-      debugPrint(">>>>>> data here <<<<<<");
-      debugPrint(response.toString());
+      // debugPrint(">>>>>> data here <<<<<<");
+      // debugPrint(response.toString());
 
       return response;
     } catch (e) {

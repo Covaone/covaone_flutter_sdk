@@ -158,12 +158,12 @@ class _GradientHero extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Positioned(
+          const Positioned(
             top: -24,
             right: -18,
             child: _DecorativeCircle(size: 110, opacity: 0.08),
           ),
-          Positioned(
+          const Positioned(
             bottom: -10,
             left: -20,
             child: _DecorativeCircle(size: 80, opacity: 0.06),

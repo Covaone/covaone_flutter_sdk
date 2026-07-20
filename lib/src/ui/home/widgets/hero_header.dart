@@ -47,17 +47,17 @@ class HeroHeader extends StatelessWidget {
             child: Stack(
               children: [
                 // Decorative circles
-                Positioned(
+                const Positioned(
                   top: -30,
                   right: -30,
                   child: _DecorativeCircle(size: 120, opacity: 0.07),
                 ),
-                Positioned(
+                const Positioned(
                   bottom: 10,
                   left: -20,
                   child: _DecorativeCircle(size: 90, opacity: 0.06),
                 ),
-                Positioned(
+                const Positioned(
                   top: 20,
                   right: 60,
                   child: _DecorativeCircle(size: 50, opacity: 0.08),
@@ -123,7 +123,7 @@ class HeroHeader extends StatelessWidget {
                             ),
                           )
                         else
-                          _AvatarRow(avatarUrls: HeroHeader._avatarUrls),
+                          const _AvatarRow(avatarUrls: HeroHeader._avatarUrls),
                       ],
                     ),
 
@@ -147,7 +147,7 @@ class HeroHeader extends StatelessWidget {
 
                     // Avatar row on narrow (smaller, inline)
                     if (isNarrow)
-                      _AvatarRow(avatarUrls: HeroHeader._avatarUrls),
+                      const _AvatarRow(avatarUrls: HeroHeader._avatarUrls),
                   ],
                 ),
               ],

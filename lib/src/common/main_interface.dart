@@ -56,9 +56,9 @@ class Covaone {
 
     Session? m = await _delegate.init(context: context);
 
-    print("biudiuwdgb");
+    // print("biudiuwdgb");
     // print(m?.configuration?.color);
-    print(_delegate.session.configuration);
+    // print(_delegate.session.configuration);
     // return;
 
     Smart.showBottomDialogs(
@@ -70,30 +70,30 @@ class Covaone {
 
     InitializerService service = InitializerService();
 
-    print('Hellidwdb');
+    // print('Hellidwdb');
 
     return;
 
-    ApiResponse response = await service.initializer(
-        _delegate.firstName,
-        _delegate.lastName,
-        _delegate.publicKey,
-        _delegate.email,
-        _delegate.userRef);
+    // ApiResponse response = await service.initializer(
+    //     _delegate.firstName,
+    //     _delegate.lastName,
+    //     _delegate.publicKey,
+    //     _delegate.email,
+    //     _delegate.userRef);
 
-    if (response.status == Status.COMPLETED) {
-      // _delegate.initializerModel = IModel.fromJson(response.data[0]);
+    // if (response.status == Status.COMPLETED) {
+    //   // _delegate.initializerModel = IModel.fromJson(response.data[0]);
 
-      // Dispose the loading indicator and show the main start dialog
-      Navigator.of(context).pop();
-      // await Future.delayed(Duration(milliseconds: 50), () => Smart.dialog(context, widget: BaseHomeWidget()));
-    } else {
-      Navigator.of(context).pop();
-    }
+    //   // Dispose the loading indicator and show the main start dialog
+    //   Navigator.of(context).pop();
+    //   // await Future.delayed(Duration(milliseconds: 50), () => Smart.dialog(context, widget: BaseHomeWidget()));
+    // } else {
+    //   Navigator.of(context).pop();
+    // }
   }
 
   void callKey() async {
-    print(_delegate.email);
+    // print(_delegate.email);
   }
 
   _checkEmailValidation(String email) {

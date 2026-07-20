@@ -12,8 +12,6 @@ class BaseHomeScreen extends StatefulWidget {
 }
 
 class _BaseHomeScreenState extends State<BaseHomeScreen> with AppResouces {
-
-
   @override
   void initState() {
     super.initState();
@@ -21,7 +19,6 @@ class _BaseHomeScreenState extends State<BaseHomeScreen> with AppResouces {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       body: Column(
         children: [
@@ -30,13 +27,14 @@ class _BaseHomeScreenState extends State<BaseHomeScreen> with AppResouces {
               Container(
                 height: 390,
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 17),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 26, horizontal: 17),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      primaryColor.withOpacity(.8),
+                      primaryColor.withValues(alpha: .8),
                       // primaryColor.withOpacity(.8),
                       primaryColor,
                     ],
@@ -65,12 +63,33 @@ class _BaseHomeScreenState extends State<BaseHomeScreen> with AppResouces {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const SizedBox(height: 20,),
-                              Text('Hey There 👋,\nHow can we help you', style: kHeaderText.copyWith(color: Colors.white,)),
-                              const SizedBox(height: 10,),
-                              Text('Help & Chat Support', style: kDefault.copyWith(color: Color(0xFFBBBBBB), fontSize: 18, height: 1),),
-                              const SizedBox(height: 8,),
-                              Text('Typically replies instantly.', style: kDefault.copyWith(color: Color(0xFFBBBBBB), fontSize: 13, height: 1),),
+                              const SizedBox(
+                                height: 20,
+                              ),
+                              Text('Hey There 👋,\nHow can we help you',
+                                  style: kHeaderText.copyWith(
+                                    color: Colors.white,
+                                  )),
+                              const SizedBox(
+                                height: 10,
+                              ),
+                              Text(
+                                'Help & Chat Support',
+                                style: kDefault.copyWith(
+                                    color: const Color(0xFFBBBBBB),
+                                    fontSize: 18,
+                                    height: 1),
+                              ),
+                              const SizedBox(
+                                height: 8,
+                              ),
+                              Text(
+                                'Typically replies instantly.',
+                                style: kDefault.copyWith(
+                                    color: const Color(0xFFBBBBBB),
+                                    fontSize: 13,
+                                    height: 1),
+                              ),
                             ],
                           ),
                         ),
@@ -79,21 +98,30 @@ class _BaseHomeScreenState extends State<BaseHomeScreen> with AppResouces {
                             height: 70,
                             width: 70,
                             decoration: BoxDecoration(
-                                color: Color(0xFFF4CE9B),
+                                color: const Color(0xFFF4CE9B),
                                 borderRadius: BorderRadius.circular(50),
-                                border: Border.all(color: Colors.white, width: 2)
-                            ),
+                                border:
+                                    Border.all(color: Colors.white, width: 2)),
                             child: Image.asset(
-                              'assets/file/tola.jpeg', package: 'covaone_sdk',
+                              'assets/file/tola.jpeg',
+                              package: 'covaone_sdk',
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 60,),
+                    const SizedBox(
+                      height: 60,
+                    ),
                     Row(
                       children: [
-                        AppButton(text: 'Send a Message', cta: () => null, height: 52, backgroundColor: Colors.white, textColor: Colors.black, radius: 14)
+                        AppButton(
+                            text: 'Send a Message',
+                            cta: () => null,
+                            height: 52,
+                            backgroundColor: Colors.white,
+                            textColor: Colors.black,
+                            radius: 14)
                       ],
                     ),
                     // Row(
@@ -129,18 +157,17 @@ class _BaseHomeScreenState extends State<BaseHomeScreen> with AppResouces {
               //   ),
               // ),
               Container(
-                margin: EdgeInsets.only(top: 300),
+                margin: const EdgeInsets.only(top: 300),
                 height: 500,
                 width: double.infinity,
-                decoration: const BoxDecoration(
-                    color: Colors.transparent
-                ),
+                decoration: const BoxDecoration(color: Colors.transparent),
                 child: Column(
                   children: [
                     Container(
                       height: 270,
                       width: double.infinity,
-                      margin: const EdgeInsets.symmetric(vertical: 24, horizontal: 17),
+                      margin: const EdgeInsets.symmetric(
+                          vertical: 24, horizontal: 17),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(14),

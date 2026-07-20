@@ -1,16 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'dart:developer' as devtools show log;
 import 'package:http/http.dart' as http;
 import 'package:covaone_sdk/src/common/exceptions.dart';
 import 'package:covaone_sdk/src/model/api_response.dart';
 import 'package:covaone_sdk/src/request/services/app_service.dart';
 
-
-
 class ApiBaseHelper with AppSdkService {
-
   Future<ApiResponse> get({required String url}) async {
     var responseJson;
     // Dio dio = Dio();
@@ -65,8 +61,7 @@ class ApiBaseHelper with AppSdkService {
       case 500:
       default:
         throw FetchDataException(
-            'Error occurred while Communication with Server with StatusCode : ${response
-                .statusCode}');
+            'Error occurred while Communication with Server with StatusCode : ${response.statusCode}');
     }
   }
 }

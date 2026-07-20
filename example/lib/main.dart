@@ -10,15 +10,15 @@ Future<void> main() async {
 
   await CovaoneChat.init(
     publicKey:
-        '61ba315b-4557-4ebf-922a-af7e5a93706f', // TODO: replace with your account public key
+        '<YOUR PUBLIC KEY>', // TODO: replace with your account public key
     // apiBase defaults to https://api.covaone.com/
     apiBase: 'http://localhost:8081/',
     // wsBase defaults to https://sync-c.covaone.com/
     // Override for local Socket.IO: wsBase: 'ws://localhost:4000/',
     // When your app already knows the signed-in user, pass their identity here
     // to skip the in-chat email/name form:
-    userEmail: 'real.osprog@gmail.com',
-    userFullName: 'Real Osprog',
+    userEmail: '<YOUR EMAIL>',
+    userFullName: '<YOUR FULL NAME>',
     autoIntercept: true,
     helpCardPosition: CovaoneHelpCardPosition.top,
   );

@@ -1,4 +1,3 @@
-
 import 'package:flutter/cupertino.dart';
 import 'package:covaone_sdk/src/common/app_storage.dart';
 import 'package:covaone_sdk/src/model/api_response.dart';
@@ -6,7 +5,7 @@ import 'package:covaone_sdk/src/model/initializer_model.dart';
 import 'package:covaone_sdk/src/model/session.dart';
 import 'package:covaone_sdk/src/request/services/initializer.dart';
 
-class VSdkPlatform  {
+class VSdkPlatform {
   String? _key;
   late String _email;
   String? _publicKey;
@@ -64,10 +63,8 @@ class VSdkPlatform  {
   }
 
   /// Initializes a new [VSdkPlatform] with [name] and merchant [publicKey].
-  Future<VSdkPlatform> initializeInterface({
-    String? name,
-    String? publicKey
-  }) async {
+  Future<VSdkPlatform> initializeInterface(
+      {String? name, String? publicKey}) async {
     _publicKey = publicKey;
     return VSdkPlatform._();
 
@@ -75,8 +72,9 @@ class VSdkPlatform  {
     // throw UnimplementedError('initializeInterface() has not been implemented.');
   }
 
-  Future<Session?> init({required BuildContext context, String? publicKey}) async {
-    if(publicKey == null && _publicKey == null) return null;
+  Future<Session?> init(
+      {required BuildContext context, String? publicKey}) async {
+    if (publicKey == null && _publicKey == null) return null;
 
     InitializerService service = InitializerService();
 
@@ -84,15 +82,16 @@ class VSdkPlatform  {
 
     String? key = publicKey ?? _publicKey;
 
-    print(exists);
+    // print(exists);
 
     if (!exists) {
-      print(key);
+      // print(key);
       ApiResponse response = await service.initialize(key!);
 
-      if( response.status == Status.COMPLETED ) {
+      if (response.status == Status.COMPLETED) {
         IModel _initializerModel = IModel.fromJson(response.data);
-        storage.saveKey(key: '_xc_covaone_ilp', value: (_initializerModel.sessionId)!);
+        storage.saveKey(
+            key: '_xc_covaone_ilp', value: (_initializerModel.sessionId)!);
         _session = (await getSession(id: _key))!;
 
         Navigator.of(context).pop();
@@ -116,9 +115,9 @@ class VSdkPlatform  {
 
       ApiResponse response = await service.getCurrentSession(id!);
 
-      print(response.data);
+      // print(response.data);
 
-      if( response.status == Status.COMPLETED ) {
+      if (response.status == Status.COMPLETED) {
         _session = Session.fromJson(response.data);
         // print(_session);
         // print(_session?.configuration?.color);
@@ -130,7 +129,7 @@ class VSdkPlatform  {
         return null;
       }
     } catch (e) {
-      print("Error $e");
+      // print("Error $e");
       return null;
     }
   }

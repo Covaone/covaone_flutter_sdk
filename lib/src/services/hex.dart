@@ -4,9 +4,8 @@ import 'package:covaone_sdk/covaone_sdk.dart';
 Covaone covaone = Covaone.instance;
 
 mixin AppResouces {
-
-  final Color primaryColor = HexConvert.hColor(covaone.initializerModel.configuration?.color);
-
+  final Color primaryColor =
+      HexConvert.hColor(covaone.initializerModel.configuration?.color);
 }
 
 class HexConvert extends Color {

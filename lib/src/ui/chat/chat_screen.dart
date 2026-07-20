@@ -64,9 +64,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       final sessionId = context.read<ChatBloc>().state.sessionId;
       if (sessionId.isNotEmpty) {
-        context
-            .read<ChatBloc>()
-            .add(SocketConnectEvent(sessionId: sessionId));
+        context.read<ChatBloc>().add(SocketConnectEvent(sessionId: sessionId));
       }
     }
   }
@@ -82,9 +80,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       sessionId = sessionState.session.sessionId;
     }
     if (sessionId != null && sessionId.isNotEmpty) {
-      context
-          .read<ChatBloc>()
-          .add(FetchMessagesEvent(sessionId: sessionId));
+      context.read<ChatBloc>().add(FetchMessagesEvent(sessionId: sessionId));
     }
   }
 
@@ -157,7 +153,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     final hasProfile = session?.hasProfile ?? false;
                     final isOpen = session?.isOpen ?? true;
                     final isSettingProfile = sState is SessionSettingProfile;
-                    final needsProfileCapture = sState is SessionProfileFormVisible;
+                    final needsProfileCapture =
+                        sState is SessionProfileFormVisible;
                     final showLeadForm =
                         needsProfileCapture && !_hasHostedUserProfile;
 
@@ -235,7 +232,7 @@ class _AgentBubbleShimmer extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        ShimmerBlock(width: 30, height: 30, borderRadius: 15),
+        const ShimmerBlock(width: 30, height: 30, borderRadius: 15),
         const SizedBox(width: 8),
         ShimmerBlock(width: maxWidth, height: 44, borderRadius: 12),
       ],

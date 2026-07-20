@@ -2,7 +2,6 @@ library covaone_sdk;
 
 import 'package:flutter/material.dart';
 import 'package:covaone_sdk/src/common/exceptions.dart';
-import 'package:covaone_sdk/src/model/api_response.dart';
 import 'package:covaone_sdk/src/model/session.dart';
 import 'package:covaone_sdk/widgets/common/smart_dialog.dart';
 
