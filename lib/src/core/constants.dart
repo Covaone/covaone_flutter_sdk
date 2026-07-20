@@ -36,7 +36,10 @@ abstract final class CovaoneConstants {
   static const Duration hostApiPromptDisplayDuration = Duration(seconds: 5);
   static const Duration hostApiPromptCooldown = Duration(seconds: 25);
 
-  // ── Socket ───────────────────────────────────────────────────────────────
+  // ── Socket / API ─────────────────────────────────────────────────────────
+  /// Default REST API base URL.
+  static const String defaultApiBase = 'https://api.covaone.com/';
+
   /// Default WebSocket / Socket.IO server base URL.
   static const String defaultWsBase = 'https://sync-c.covaone.com/';
   static const int socketReconnectionAttempts = 3;

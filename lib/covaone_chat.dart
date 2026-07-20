@@ -159,7 +159,7 @@ class CovaoneChat {
   ///   WidgetsFlutterBinding.ensureInitialized();
   ///   await CovaoneChat.init(
   ///     publicKey: 'your-public-key',
-  ///     apiBase: 'https://api.covaone.com/',
+  ///     // apiBase defaults to https://api.covaone.com/
   ///     // wsBase defaults to https://sync-c.covaone.com/
   ///     userEmail: 'user@example.com',      // optional
   ///     userFullName: 'Jane Doe',           // optional
@@ -173,7 +173,7 @@ class CovaoneChat {
   /// ```
   static Future<void> init({
     required String publicKey,
-    required String apiBase,
+    String apiBase = CovaoneConstants.defaultApiBase,
     String wsBase = CovaoneConstants.defaultWsBase,
     String? userEmail,
     String? userFullName,

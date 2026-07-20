@@ -13,7 +13,10 @@ class CovaoneConfig {
   /// Merchant public key obtained from the Covaone dashboard.
   final String publicKey;
 
-  /// Base URL for all REST API calls (e.g. `https://api.covaone.com/`).
+  /// Base URL for all REST API calls.
+  ///
+  /// Defaults to [CovaoneConstants.defaultApiBase]
+  /// (`https://api.covaone.com/`).
   final String apiBase;
 
   /// WebSocket / Socket.IO server base URL.
@@ -57,7 +60,7 @@ class CovaoneConfig {
 
   const CovaoneConfig({
     required this.publicKey,
-    required this.apiBase,
+    this.apiBase = CovaoneConstants.defaultApiBase,
     this.wsBase = CovaoneConstants.defaultWsBase,
     this.userEmail,
     this.userFullName,

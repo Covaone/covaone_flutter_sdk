@@ -11,7 +11,7 @@ Future<void> main() async {
   await CovaoneChat.init(
     publicKey:
         '61ba315b-4557-4ebf-922a-af7e5a93706f', // TODO: replace with your account public key
-    // apiBase: 'https://api.covaone.com/',
+    // apiBase defaults to https://api.covaone.com/
     apiBase: 'http://localhost:8081/',
     // wsBase defaults to https://sync-c.covaone.com/
     // Override for local Socket.IO: wsBase: 'ws://localhost:4000/',
