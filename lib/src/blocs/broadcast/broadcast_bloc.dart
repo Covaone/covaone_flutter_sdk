@@ -49,15 +49,9 @@ class BroadcastBloc extends Bloc<BroadcastEvent, BroadcastState> {
       return;
     }
 
-    // Panel open (default): always refresh from the API. Show cache first so
-    // the home list doesn't flash a loading state when data is already known.
-    if (state is! BroadcastLoaded) {
-      if (cached != null) {
-        await _emitBroadcasts(cached, emit);
-      } else {
-        emit(const BroadcastLoading());
-      }
-    }
+    // Panel open (default): always refresh from the API. Show the platform
+    // loader in the broadcast area while the request is in flight.
+    emit(const BroadcastLoading());
 
     try {
       final results = await Future.wait([

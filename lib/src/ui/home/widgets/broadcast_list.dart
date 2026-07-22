@@ -8,7 +8,7 @@ import '../../../blocs/session/session_bloc.dart';
 import '../../../data/models/broadcast_model.dart';
 import '../../broadcast/broadcast_detail_screen.dart';
 import '../../shared/covaone_theme.dart';
-import 'broadcast_list_shimmer.dart';
+import '../../shared/platform_loader.dart';
 
 /// Renders the broadcast list (or loading/empty states) on the Home tab.
 class BroadcastList extends StatelessWidget {
@@ -19,7 +19,10 @@ class BroadcastList extends StatelessWidget {
     return BlocBuilder<BroadcastBloc, BroadcastState>(
       builder: (context, state) {
         if (state is BroadcastLoading || state is BroadcastInitial) {
-          return const BroadcastListShimmer();
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48),
+            child: Center(child: PlatformLoader()),
+          );
         }
 
         if (state is BroadcastError) {
