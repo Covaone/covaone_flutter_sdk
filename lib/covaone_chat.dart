@@ -146,10 +146,11 @@ class CovaoneChat {
   /// first time the user opens a conversation.
   ///
   /// Returning users load a cached session on startup (no REST call) and connect
-  /// the WebSocket immediately so inbound calls/messages can arrive. Session and
-  /// broadcast data are refreshed from the API only when their TTL expires
-  /// ([sessionCacheTtl] / [broadcastCacheTtl], default 24 hours) and the user
-  /// opens the support panel or chat.
+  /// the WebSocket immediately so inbound calls/messages can arrive. Session data
+  /// is refreshed from the API when its TTL expires ([sessionCacheTtl], default
+  /// 24 hours) and the user opens the support panel. Broadcasts hydrate from
+  /// cache while the panel is closed ([broadcastCacheTtl]) and always refresh
+  /// from the API when the panel opens.
   ///
   /// You can also provide identity later via [setUserProfile] +
   /// [syncUserProfile] (or [pushUserProfile]).

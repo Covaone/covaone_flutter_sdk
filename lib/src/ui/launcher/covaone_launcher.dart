@@ -86,9 +86,11 @@ class _CovaoneLauncherState extends State<CovaoneLauncher> {
         _extractSessionId(sessionBloc.state) ?? sessionBloc.currentSessionId;
     if (sessionId == null) return;
 
+    // Session still respects TTL; broadcasts always refresh when the panel opens
+    // (same eager pattern as FAQ on tab open).
     sessionBloc.add(const RefreshSessionIfStaleEvent());
     CovaoneDI.sl<BroadcastBloc>().add(
-      FetchBroadcastsEvent(sessionId: sessionId, refreshIfStale: true),
+      FetchBroadcastsEvent(sessionId: sessionId),
     );
   }
 

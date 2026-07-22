@@ -8,6 +8,12 @@ abstract class BroadcastEvent extends Equatable {
 
 /// Fetch all broadcasts for the widget channel, then split into
 /// in-app and widget-popup categories.
+///
+/// Default (both flags `false`): always hits the network — used when the
+/// support panel opens, same idea as FAQ load-on-tab.
+///
+/// [cacheOnly] / [refreshIfStale]: background-only paths while the panel is
+/// closed (hydrate disk / refresh only after TTL).
 class FetchBroadcastsEvent extends BroadcastEvent {
   final String sessionId;
 

@@ -11,10 +11,6 @@ Future<void> main() async {
   await CovaoneChat.init(
     publicKey:
         '<YOUR PUBLIC KEY>', // TODO: replace with your account public key
-    // apiBase defaults to https://api.covaone.com/
-    apiBase: 'http://localhost:8081/',
-    // wsBase defaults to https://sync-c.covaone.com/
-    // Override for local Socket.IO: wsBase: 'ws://localhost:4000/',
     // When your app already knows the signed-in user, pass their identity here
     // to skip the in-chat email/name form:
     userEmail: '<YOUR EMAIL>',

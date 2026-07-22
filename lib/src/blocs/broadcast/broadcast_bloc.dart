@@ -33,6 +33,7 @@ class BroadcastBloc extends Bloc<BroadcastEvent, BroadcastState> {
     final lastSync = await _sessionStorage.getBroadcastSyncAt();
     final cacheFresh = cached != null && !_config.isBroadcastSyncExpired(lastSync);
 
+    // Background / cold start: hydrate from disk, never hit the network.
     if (event.cacheOnly) {
       if (cached != null) {
         await _emitBroadcasts(cached, emit);
@@ -40,6 +41,7 @@ class BroadcastBloc extends Bloc<BroadcastEvent, BroadcastState> {
       return;
     }
 
+    // Background stale check: skip the network while the TTL is still valid.
     if (event.refreshIfStale && cacheFresh) {
       if (state is! BroadcastLoaded) {
         await _emitBroadcasts(cached, emit);
@@ -47,12 +49,16 @@ class BroadcastBloc extends Bloc<BroadcastEvent, BroadcastState> {
       return;
     }
 
-    if (!event.refreshIfStale && cacheFresh) {
-      await _emitBroadcasts(cached, emit);
-      return;
+    // Panel open (default): always refresh from the API. Show cache first so
+    // the home list doesn't flash a loading state when data is already known.
+    if (state is! BroadcastLoaded) {
+      if (cached != null) {
+        await _emitBroadcasts(cached, emit);
+      } else {
+        emit(const BroadcastLoading());
+      }
     }
 
-    emit(const BroadcastLoading());
     try {
       final results = await Future.wait([
         _broadcastRepository.getBroadcasts(event.sessionId),
