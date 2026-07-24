@@ -12,6 +12,7 @@ import '../../core/chat_controller.dart';
 import '../../core/config.dart';
 import '../../core/di.dart';
 import '../../core/constants.dart';
+import '../../data/models/message_error_info.dart';
 import '../../data/models/session_model.dart';
 import '../../services/app_api_error_service.dart';
 import '../broadcast/widget_broadcast_popup.dart';
@@ -41,9 +42,12 @@ class _CovaoneLauncherState extends State<CovaoneLauncher> {
 
   bool _sheetShowing = false;
   bool _launchIntoChat = false;
+  String? _launchDraftMessage;
+  MessageErrorInfo? _launchErrorInfo;
   StreamSubscription<SessionState>? _sessionSub;
   DateTime? _lastApiPromptShownAt;
   Timer? _promptTimer;
+  AppApiErrorEvent? _promptErrorEvent;
 
   @override
   void initState() {
@@ -118,6 +122,7 @@ class _CovaoneLauncherState extends State<CovaoneLauncher> {
 
     _promptTimer?.cancel();
     _lastApiPromptShownAt = event.timestamp;
+    _promptErrorEvent = event;
     _showApiPromptOverlay();
     _promptTimer = Timer(
       CovaoneDI.sl<CovaoneConfig>().helpCardDisplayDuration,
@@ -203,7 +208,8 @@ class _CovaoneLauncherState extends State<CovaoneLauncher> {
   void _onPromptTap() {
     _promptTimer?.cancel();
     _removeApiPromptOverlay();
-    CovaoneChatController.open();
+    // Open tray → chat, and prefill the composer with the failing API details.
+    _openChatFromSupportPrompt();
   }
 
   void _handlePanelChange() {
@@ -229,6 +235,23 @@ class _CovaoneLauncherState extends State<CovaoneLauncher> {
     if (chatBloc.state.isChatOpen) {
       chatBloc.add(const CloseChatEvent());
     }
+    _launchDraftMessage = null;
+    _launchErrorInfo = null;
+    _launchIntoChat = true;
+    CovaoneChatController.open();
+  }
+
+  /// Same as [_openChatFromAlert], but prefills a support draft and holds
+  /// technical API error details to attach on the next socket send.
+  void _openChatFromSupportPrompt() {
+    final error = _promptErrorEvent ?? _apiErrorService?.latestEvent;
+    _promptErrorEvent = null;
+    final chatBloc = CovaoneDI.sl<ChatBloc>();
+    if (chatBloc.state.isChatOpen) {
+      chatBloc.add(const CloseChatEvent());
+    }
+    _launchDraftMessage = error?.toSupportDraftMessage();
+    _launchErrorInfo = error?.toMessageErrorInfo();
     _launchIntoChat = true;
     CovaoneChatController.open();
   }
@@ -237,7 +260,11 @@ class _CovaoneLauncherState extends State<CovaoneLauncher> {
     if (!mounted || _sheetShowing) return;
     _sheetShowing = true;
     final openChatOnMount = _launchIntoChat;
+    final draftMessage = _launchDraftMessage;
+    final errorInfo = _launchErrorInfo;
     _launchIntoChat = false;
+    _launchDraftMessage = null;
+    _launchErrorInfo = null;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -249,6 +276,8 @@ class _CovaoneLauncherState extends State<CovaoneLauncher> {
       builder: (sheetCtx) => _SheetContent(
         navigatorKey: _navigatorKey,
         openChatOnMount: openChatOnMount,
+        draftMessage: draftMessage,
+        errorInfo: errorInfo,
       ),
     );
 
@@ -738,10 +767,14 @@ class _SupportAvatarState extends State<_SupportAvatar>
 class _SheetContent extends StatelessWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final bool openChatOnMount;
+  final String? draftMessage;
+  final MessageErrorInfo? errorInfo;
 
   const _SheetContent({
     required this.navigatorKey,
     this.openChatOnMount = false,
+    this.draftMessage,
+    this.errorInfo,
   });
 
   @override
@@ -757,6 +790,8 @@ class _SheetContent extends StatelessWidget {
       child: _SheetPanel(
         navigatorKey: navigatorKey,
         openChatOnMount: openChatOnMount,
+        draftMessage: draftMessage,
+        errorInfo: errorInfo,
       ),
     );
   }
@@ -765,10 +800,14 @@ class _SheetContent extends StatelessWidget {
 class _SheetPanel extends StatelessWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final bool openChatOnMount;
+  final String? draftMessage;
+  final MessageErrorInfo? errorInfo;
 
   const _SheetPanel({
     required this.navigatorKey,
     this.openChatOnMount = false,
+    this.draftMessage,
+    this.errorInfo,
   });
 
   @override
@@ -802,6 +841,8 @@ class _SheetPanel extends StatelessWidget {
                     navigatorKey: navigatorKey,
                     isNarrow: isNarrow,
                     openChatOnMount: openChatOnMount,
+                    draftMessage: draftMessage,
+                    errorInfo: errorInfo,
                   ),
                 ),
                 Positioned(
@@ -863,11 +904,15 @@ class _PanelBody extends StatefulWidget {
   final GlobalKey<NavigatorState> navigatorKey;
   final bool isNarrow;
   final bool openChatOnMount;
+  final String? draftMessage;
+  final MessageErrorInfo? errorInfo;
 
   const _PanelBody({
     required this.navigatorKey,
     required this.isNarrow,
     this.openChatOnMount = false,
+    this.draftMessage,
+    this.errorInfo,
   });
 
   @override
@@ -881,7 +926,11 @@ class _PanelBodyState extends State<_PanelBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.openChatOnMount) {
-        context.read<ChatBloc>().add(const OpenChatEvent(isNew: false));
+        context.read<ChatBloc>().add(OpenChatEvent(
+              isNew: false,
+              draftMessage: widget.draftMessage,
+              errorInfo: widget.errorInfo,
+            ));
         return;
       }
       _openChatIfNeeded();

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/constants.dart';
+import '../data/models/message_error_info.dart';
 
 /// Source that produced a host-app API error report.
 enum AppApiErrorSource {
@@ -34,6 +35,27 @@ class AppApiErrorEvent {
     this.statusCode,
     this.message,
   });
+
+  /// Friendly draft for the chat composer when the user taps the help card.
+  /// Technical API details are withheld — they go on the socket as `error-info`.
+  String toSupportDraftMessage() {
+    return 'Hi, I need help — I just ran into an error while using the app.';
+  }
+
+  /// Socket-only payload for `messageData['error-info']`.
+  MessageErrorInfo toMessageErrorInfo() {
+    return MessageErrorInfo(
+      url: uri?.toString(),
+      data: {
+        'method': method,
+        if (statusCode != null) 'status_code': statusCode,
+        if (message != null && message!.trim().isNotEmpty)
+          'message': message!.trim(),
+        'source': source.name,
+        'timestamp': timestamp.toIso8601String(),
+      },
+    );
+  }
 }
 
 /// Callback signature for host-app API error notifications.

@@ -18,13 +18,29 @@ class ChatTabChangedEvent extends ChatEvent {
 class OpenChatEvent extends ChatEvent {
   /// True when launched from the "Send us a Message" CTA.
   final bool isNew;
-  const OpenChatEvent({this.isNew = false});
+
+  /// Optional text to prefill in the message composer (e.g. support prompt).
+  final String? draftMessage;
+
+  /// Optional technical error payload attached on the next outbound send.
+  final MessageErrorInfo? errorInfo;
+
+  const OpenChatEvent({
+    this.isNew = false,
+    this.draftMessage,
+    this.errorInfo,
+  });
   @override
-  List<Object?> get props => [isNew];
+  List<Object?> get props => [isNew, draftMessage, errorInfo];
 }
 
 class CloseChatEvent extends ChatEvent {
   const CloseChatEvent();
+}
+
+/// Clears [ChatState.draftMessage] after the composer has applied it.
+class ClearDraftMessageEvent extends ChatEvent {
+  const ClearDraftMessageEvent();
 }
 
 // ── Session / socket ───────────────────────────────────────────────────────────

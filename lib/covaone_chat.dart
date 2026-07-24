@@ -25,6 +25,7 @@ import 'src/core/chat_controller.dart';
 import 'src/core/config.dart';
 import 'src/core/constants.dart';
 import 'src/core/di.dart';
+import 'src/data/local/session_storage.dart';
 import 'src/services/app_api_error_service.dart';
 import 'src/services/webrtc_service.dart';
 import 'src/services/socket_service.dart';
@@ -291,9 +292,16 @@ class CovaoneChat {
 
   /// Tears down all SDK resources and resets the service locator.
   ///
-  /// Safe to call on user logout. After calling [destroy], you must call
-  /// [init] again before using the SDK.
-  static Future<void> destroy() async {
+  /// By default the persisted session (session id, cached messages, profile,
+  /// broadcasts, alert prefs) is kept so the next [init] resumes the same
+  /// conversation. Pass [clearSession] `true` on logout when the next [init]
+  /// should start a fresh session.
+  ///
+  /// After calling [destroy], you must call [init] again before using the SDK.
+  static Future<void> destroy({bool clearSession = false}) async {
+    if (clearSession) {
+      await SessionStorage().clearAll();
+    }
     if (!_initialized) return;
     CovaoneChatController.close();
     await _sessionStateSubscription?.cancel();

@@ -38,6 +38,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     on<NewConversationEvent>(_onNewConversation);
     on<RefreshSessionIfStaleEvent>(_onRefreshIfStale);
     on<UpdateSessionMessagesEvent>(_onUpdateMessages);
+    on<SyncSessionStatusEvent>(_onSyncStatus);
   }
 
   // ── Public helpers ────────────────────────────────────────────────────────
@@ -212,6 +213,20 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
 
     emit(SessionLoaded(
       session: current.session.copyWith(messages: next),
+      initials: current.initials,
+      themeColor: current.themeColor,
+    ));
+  }
+
+  void _onSyncStatus(
+      SyncSessionStatusEvent event, Emitter<SessionState> emit) {
+    final current = state;
+    if (current is! SessionLoaded) return;
+    if (current.session.sessionId != event.sessionId) return;
+    if (current.session.status == event.status) return;
+
+    emit(SessionLoaded(
+      session: current.session.copyWith(status: event.status),
       initials: current.initials,
       themeColor: current.themeColor,
     ));

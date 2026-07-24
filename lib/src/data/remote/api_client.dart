@@ -50,8 +50,8 @@ class ApiClient {
       'get-single-session',
       data: {'session_id': sessionId},
     );
-    debugPrint(">>>>>> response here <<<<<<");
-    debugPrint(">>>>>> ${response.toString()} <<<<<<");
+    // debugPrint(">>>>>> response here <<<<<<");
+    // debugPrint(">>>>>> ${response.toString()} <<<<<<");
 
     return _unwrap(response);
   }
@@ -158,23 +158,22 @@ class ApiClient {
 class _LoggingInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    debugPrint('[Covaone] → ${options.method} ${options.uri}');
+    // debugPrint('[Covaone] → ${options.method} ${options.uri}');
     if (options.data != null) {
-      debugPrint('[Covaone]   body: ${jsonEncode(options.data)}');
+      // debugPrint('[Covaone]   body: ${jsonEncode(options.data)}');
     }
     handler.next(options);
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    debugPrint(
-        '[Covaone] ← ${response.statusCode} ${response.requestOptions.uri}');
+    // debugPrint('[Covaone] ← ${response.statusCode} ${response.requestOptions.uri}');
     handler.next(response);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    debugPrint('[Covaone] ✗ ${err.requestOptions.uri}: ${err.message}');
+    // debugPrint('[Covaone] ✗ ${err.requestOptions.uri}: ${err.message}');
     handler.next(err);
   }
 }

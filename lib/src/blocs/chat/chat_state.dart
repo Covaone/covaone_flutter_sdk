@@ -52,6 +52,12 @@ class ChatState extends Equatable {
   final String? pendingFileBase64;
   final String? pendingFileMime;
 
+  /// Prefill text for the message composer (e.g. from the API-error help card).
+  final String? draftMessage;
+
+  /// Technical API error to attach once on the next outbound socket send.
+  final MessageErrorInfo? pendingErrorInfo;
+
   const ChatState({
     this.currentTab = ChatTab.home,
     this.isChatOpen = false,
@@ -71,6 +77,8 @@ class ChatState extends Equatable {
     this.selectedFileSize,
     this.pendingFileBase64,
     this.pendingFileMime,
+    this.draftMessage,
+    this.pendingErrorInfo,
   });
 
   ChatState copyWith({
@@ -93,6 +101,8 @@ class ChatState extends Equatable {
     Object? selectedFileSize = _sentinel,
     Object? pendingFileBase64 = _sentinel,
     Object? pendingFileMime = _sentinel,
+    Object? draftMessage = _sentinel,
+    Object? pendingErrorInfo = _sentinel,
   }) =>
       ChatState(
         currentTab: currentTab ?? this.currentTab,
@@ -125,6 +135,12 @@ class ChatState extends Equatable {
         pendingFileMime: pendingFileMime == _sentinel
             ? this.pendingFileMime
             : pendingFileMime as String?,
+        draftMessage: draftMessage == _sentinel
+            ? this.draftMessage
+            : draftMessage as String?,
+        pendingErrorInfo: pendingErrorInfo == _sentinel
+            ? this.pendingErrorInfo
+            : pendingErrorInfo as MessageErrorInfo?,
       );
 
   @override
@@ -147,6 +163,8 @@ class ChatState extends Equatable {
         selectedFileSize,
         pendingFileBase64,
         pendingFileMime,
+        draftMessage,
+        pendingErrorInfo,
       ];
 }
 

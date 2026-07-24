@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../core/constants.dart';
+import '../data/models/message_error_info.dart';
 import '../data/models/message_model.dart';
 
 /// Manages the Socket.IO connection to the Covaone real-time server.
@@ -83,7 +84,11 @@ class SocketService {
 
   // ── Outbound events ───────────────────────────────────────────────────────
 
-  void sendMessage(String sessionId, String text) {
+  void sendMessage(
+    String sessionId,
+    String text, {
+    MessageErrorInfo? errorInfo,
+  }) {
     _socket?.emit(CovaoneConstants.socketSendMessageEvent, {
       'room': sessionId,
       'messageData': {
@@ -91,6 +96,7 @@ class SocketService {
         'message': text,
         'message_type': MessageType.QUERY.value,
         'file': null,
+        'error-info': errorInfo?.toJson(),
       },
     });
   }

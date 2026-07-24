@@ -27,7 +27,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   int _prevMessageCount = 0;
   late final bool _hasHostedUserProfile =
       CovaoneDI.sl<CovaoneConfig>().hasHostedUserProfile;
-  bool _hostedProfileAttempted = false;
+
+  /// Session ID the hosted profile was last submitted for. Tracked per-session
+  /// (rather than a one-shot flag) so a fresh session created by "New
+  /// Conversation" re-registers the profile instead of hanging on the loader.
+  String? _hostedProfileSessionId;
 
   @override
   void initState() {
@@ -39,12 +43,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _registerHostedProfileIfNeeded() {
-    if (_hostedProfileAttempted || !_hasHostedUserProfile || !mounted) return;
+    if (!_hasHostedUserProfile || !mounted) return;
 
     final sessionState = context.read<SessionBloc>().state;
     if (sessionState is! SessionProfileFormVisible) return;
 
-    _hostedProfileAttempted = true;
+    // Avoid submitting twice for the same session while set-profile is in flight.
+    final sessionId = sessionState.session.sessionId;
+    if (_hostedProfileSessionId == sessionId) return;
+    _hostedProfileSessionId = sessionId;
+
     final config = CovaoneDI.sl<CovaoneConfig>();
     context.read<SessionBloc>().add(SetProfileEvent(
           email: config.hostedUserEmail!,
@@ -108,6 +116,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       listener: (context, state) {
         if (state is SessionProfileFormVisible) {
           if (state.profileError != null) {
+            // Release the per-session guard so the fallback lead form can
+            // re-submit for this same session.
+            _hostedProfileSessionId = null;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.profileError!)),
             );
@@ -155,8 +166,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     final isSettingProfile = sState is SessionSettingProfile;
                     final needsProfileCapture =
                         sState is SessionProfileFormVisible;
-                    final showLeadForm =
-                        needsProfileCapture && !_hasHostedUserProfile;
+                    // A failed hosted registration must not hang on the loader —
+                    // fall back to the manual lead-capture form so the user can
+                    // retry instead of being stuck.
+                    final hostedProfileFailed = sState
+                            is SessionProfileFormVisible &&
+                        sState.profileError != null;
+                    final hostedProfilePending = needsProfileCapture &&
+                        _hasHostedUserProfile &&
+                        !hostedProfileFailed;
+                    final showLeadForm = needsProfileCapture &&
+                        (!_hasHostedUserProfile || hostedProfileFailed);
 
                     return Column(
                       children: [
@@ -169,8 +189,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         if (!isOpen)
                           const ClosedConversationBanner()
                         else ...[
-                          if (isSettingProfile ||
-                              (needsProfileCapture && _hasHostedUserProfile))
+                          if (isSettingProfile || hostedProfilePending)
                             const ProfileSetupLoader(),
                           if (showLeadForm) const LeadCaptureForm(),
                           MessageInputBar(

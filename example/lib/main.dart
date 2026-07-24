@@ -10,11 +10,13 @@ Future<void> main() async {
 
   await CovaoneChat.init(
     publicKey:
-        '<YOUR PUBLIC KEY>', // TODO: replace with your account public key
+        '<your_public_key>', // TODO: replace with your account public key
     // When your app already knows the signed-in user, pass their identity here
     // to skip the in-chat email/name form:
-    userEmail: '<YOUR EMAIL>',
-    userFullName: '<YOUR FULL NAME>',
+    // apiBase: 'http://localhost:8081/',
+    // wsBase: 'http://localhost:4000',
+    userEmail: 'test@covaone.com',
+    userFullName: 'Test User',
     autoIntercept: true,
     helpCardPosition: CovaoneHelpCardPosition.top,
   );
@@ -126,11 +128,12 @@ class _DemoHome extends StatelessWidget {
                   label: 'Destroy SDK (logout)',
                   color: const Color(0xFF9E9E9E),
                   onTap: () async {
-                    await CovaoneChat.destroy();
+                    await CovaoneChat.destroy(clearSession: true);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text('SDK destroyed. Call init() again.')),
+                            content: Text(
+                                'SDK destroyed (session cleared). Call init() again.')),
                       );
                     }
                   },

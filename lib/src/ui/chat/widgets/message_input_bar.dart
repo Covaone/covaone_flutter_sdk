@@ -34,10 +34,32 @@ class _MessageInputBarState extends State<MessageInputBar> {
   bool _showEmoji = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _applyDraftIfNeeded(context.read<ChatBloc>().state.draftMessage);
+    });
+  }
+
+  @override
   void dispose() {
     _textCtrl.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _applyDraftIfNeeded(String? draft) {
+    if (draft == null || draft.isEmpty) return;
+    if (_textCtrl.text == draft) {
+      context.read<ChatBloc>().add(const ClearDraftMessageEvent());
+      return;
+    }
+    _textCtrl.value = TextEditingValue(
+      text: draft,
+      selection: TextSelection.collapsed(offset: draft.length),
+    );
+    context.read<ChatBloc>().add(const ClearDraftMessageEvent());
   }
 
   // ── Attachment pick ──────────────────────────────────────────────────────────
@@ -199,80 +221,87 @@ class _MessageInputBarState extends State<MessageInputBar> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ChatBloc, ChatState>(
-      buildWhen: (prev, curr) =>
-          prev.isFileSelected != curr.isFileSelected ||
-          prev.isSending != curr.isSending,
-      builder: (context, state) {
-        return GestureDetector(
-          onTap: () {
-            // Tapping outside emoji picker closes it.
-            if (_showEmoji) setState(() => _showEmoji = false);
-          },
-          behavior: HitTestBehavior.translucent,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_showEmoji && widget.enabled)
-                EmojiPickerOverlay(
-                  onEmojiSelected: (emoji) {
-                    final pos = _textCtrl.selection.base.offset;
-                    final text = _textCtrl.text;
-                    final newText = pos < 0
-                        ? text + emoji
-                        : text.substring(0, pos) +
-                            emoji +
-                            text.substring(pos);
-                    _textCtrl.value = TextEditingValue(
-                      text: newText,
-                      selection: TextSelection.collapsed(
-                          offset: (pos < 0 ? text.length : pos) +
-                              emoji.length),
-                    );
-                  },
-                ),
-              Container(
-                decoration: BoxDecoration(
-                  color: widget.enabled
-                      ? Colors.white
-                      : const Color(0xFFF3F4F6),
-                  border: const Border(
-                      top: BorderSide(color: Color(0xFFEEEEEE))),
-                ),
-                child: Opacity(
-                  opacity: widget.enabled ? 1.0 : 0.5,
-                  child: AbsorbPointer(
-                    absorbing: !widget.enabled,
-                    child: state.isFileSelected
-                        ? _FilePreviewBar(
-                            filename: state.selectedFileName ?? '',
-                            sizeBytes: state.selectedFileSize ?? 0,
-                            themeColor: widget.themeColor,
-                            formatSize: _formatFileSize,
-                            onRemove: () => context
-                                .read<ChatBloc>()
-                                .add(const FileClearedEvent()),
-                            onSend: () => _send(state),
-                            isSending: state.isSending,
-                          )
-                        : _TextInputRow(
-                            textCtrl: _textCtrl,
-                            focusNode: _focusNode,
-                            showEmoji: _showEmoji,
-                            themeColor: widget.themeColor,
-                            isSending: state.isSending,
-                            onToggleEmoji: () =>
-                                setState(() => _showEmoji = !_showEmoji),
-                            onPickFile: _showAttachOptions,
-                            onSend: () => _send(state),
-                          ),
+    return BlocListener<ChatBloc, ChatState>(
+      listenWhen: (prev, curr) =>
+          prev.draftMessage != curr.draftMessage &&
+          curr.draftMessage != null &&
+          curr.draftMessage!.isNotEmpty,
+      listener: (context, state) => _applyDraftIfNeeded(state.draftMessage),
+      child: BlocBuilder<ChatBloc, ChatState>(
+        buildWhen: (prev, curr) =>
+            prev.isFileSelected != curr.isFileSelected ||
+            prev.isSending != curr.isSending,
+        builder: (context, state) {
+          return GestureDetector(
+            onTap: () {
+              // Tapping outside emoji picker closes it.
+              if (_showEmoji) setState(() => _showEmoji = false);
+            },
+            behavior: HitTestBehavior.translucent,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_showEmoji && widget.enabled)
+                  EmojiPickerOverlay(
+                    onEmojiSelected: (emoji) {
+                      final pos = _textCtrl.selection.base.offset;
+                      final text = _textCtrl.text;
+                      final newText = pos < 0
+                          ? text + emoji
+                          : text.substring(0, pos) +
+                              emoji +
+                              text.substring(pos);
+                      _textCtrl.value = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection.collapsed(
+                            offset: (pos < 0 ? text.length : pos) +
+                                emoji.length),
+                      );
+                    },
+                  ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: widget.enabled
+                        ? Colors.white
+                        : const Color(0xFFF3F4F6),
+                    border: const Border(
+                        top: BorderSide(color: Color(0xFFEEEEEE))),
+                  ),
+                  child: Opacity(
+                    opacity: widget.enabled ? 1.0 : 0.5,
+                    child: AbsorbPointer(
+                      absorbing: !widget.enabled,
+                      child: state.isFileSelected
+                          ? _FilePreviewBar(
+                              filename: state.selectedFileName ?? '',
+                              sizeBytes: state.selectedFileSize ?? 0,
+                              themeColor: widget.themeColor,
+                              formatSize: _formatFileSize,
+                              onRemove: () => context
+                                  .read<ChatBloc>()
+                                  .add(const FileClearedEvent()),
+                              onSend: () => _send(state),
+                              isSending: state.isSending,
+                            )
+                          : _TextInputRow(
+                              textCtrl: _textCtrl,
+                              focusNode: _focusNode,
+                              showEmoji: _showEmoji,
+                              themeColor: widget.themeColor,
+                              isSending: state.isSending,
+                              onToggleEmoji: () =>
+                                  setState(() => _showEmoji = !_showEmoji),
+                              onPickFile: _showAttachOptions,
+                              onSend: () => _send(state),
+                            ),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

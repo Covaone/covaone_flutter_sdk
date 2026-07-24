@@ -61,3 +61,17 @@ class UpdateSessionMessagesEvent extends SessionEvent {
   @override
   List<Object?> get props => [messages];
 }
+
+/// Propagates the freshest conversation status (e.g. `"closed"`) fetched by
+/// [ChatBloc] when the chat opens, so the loaded session no longer reflects a
+/// stale status while still inside the session cache TTL.
+class SyncSessionStatusEvent extends SessionEvent {
+  final String sessionId;
+  final String status;
+  const SyncSessionStatusEvent({
+    required this.sessionId,
+    required this.status,
+  });
+  @override
+  List<Object?> get props => [sessionId, status];
+}

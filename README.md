@@ -382,10 +382,15 @@ await CovaoneChat.init(
 );
 ```
 
-### Teardown (logout)
+### Teardown
 
 ```dart
+// Soft teardown — keeps persisted session for the next init()
 await CovaoneChat.destroy();
+
+// Logout — wipe session so the next init() starts fresh
+await CovaoneChat.destroy(clearSession: true);
+
 // Disconnects socket, releases WebRTC, disposes audio players, resets DI.
 // Call CovaoneChat.init() again to re-use.
 ```

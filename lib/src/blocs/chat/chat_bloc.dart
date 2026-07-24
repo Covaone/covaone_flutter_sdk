@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/chat_controller.dart';
 import '../../data/local/session_storage.dart';
+import '../../data/models/message_error_info.dart';
 import '../../data/models/message_model.dart';
 import '../../data/models/session_model.dart';
 import '../../data/repositories/chat_repository.dart';
@@ -45,6 +46,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<ChatTabChangedEvent>(_onTabChanged);
     on<OpenChatEvent>(_onOpenChat);
     on<CloseChatEvent>(_onCloseChat);
+    on<ClearDraftMessageEvent>(_onClearDraftMessage);
 
     // ── Session / socket ──────────────────────────────────────────────────────
     on<MessagesLoadedEvent>(_onMessagesLoaded);
@@ -203,11 +205,24 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       lastMessageAlertClearedAt: openedAt,
       pendingMessageAlerts: const [],
       unreadCount: 0,
+      draftMessage: event.draftMessage,
+      pendingErrorInfo: event.errorInfo,
     ));
   }
 
   void _onCloseChat(CloseChatEvent event, Emitter<ChatState> emit) {
-    emit(state.copyWith(isChatOpen: false, isNewChat: false));
+    emit(state.copyWith(
+      isChatOpen: false,
+      isNewChat: false,
+      draftMessage: null,
+      pendingErrorInfo: null,
+    ));
+  }
+
+  void _onClearDraftMessage(
+      ClearDraftMessageEvent event, Emitter<ChatState> emit) {
+    if (state.draftMessage == null) return;
+    emit(state.copyWith(draftMessage: null));
   }
 
   // ── Session / socket handlers ─────────────────────────────────────────────
@@ -272,6 +287,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         unreadCount: chatVisible ? 0 : alerts.length,
       ));
       _syncSessionMessages(messages);
+      // Push the freshest status so the closed-conversation banner appears even
+      // when SessionBloc's cached session is still marked open (within TTL).
+      _syncSessionStatus(session.sessionId, session.status);
     } catch (e) {
       emit(state.copyWith(isLoading: false, error: e.toString()));
     }
@@ -292,13 +310,19 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       sessionId: state.sessionId,
     );
     final messages = [...state.messages, optimistic];
+    final errorInfo = state.pendingErrorInfo;
     emit(state.copyWith(
       messages: messages,
       isSending: true,
+      pendingErrorInfo: null,
     ));
     _syncSessionMessages(messages);
 
-    _socketService.sendMessage(state.sessionId, event.text);
+    _socketService.sendMessage(
+      state.sessionId,
+      event.text,
+      errorInfo: errorInfo,
+    );
     emit(state.copyWith(isSending: false));
   }
 
@@ -418,6 +442,15 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _sessionBloc.add(UpdateSessionMessagesEvent(messages: messages));
   }
 
+  /// Forwards the freshest conversation status to [SessionBloc]. No-op there
+  /// when the status is unchanged, so this cannot cause an emit loop.
+  void _syncSessionStatus(String sessionId, String status) {
+    if (_sessionBloc.isClosed) return;
+    _sessionBloc.add(
+      SyncSessionStatusEvent(sessionId: sessionId, status: status),
+    );
+  }
+
   Future<void> _persistIncomingMessage(
     MessageModel message, {
     required List<MessageModel> alerts,
@@ -456,6 +489,28 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   void _onSyncUnreadAlerts(
       SyncUnreadAlertsFromMessagesEvent event, Emitter<ChatState> emit) {
+    // A brand-new session (e.g. after "New Conversation") replaced the old one.
+    // Drop the previous conversation's history and alerts entirely instead of
+    // merging, so the screen refreshes to the fresh session's messages only.
+    //
+    // A pending draft / error is intentionally preserved: when the user opens
+    // chat from the "Chat with support" error prompt onto a CLOSED conversation,
+    // the composer is hidden behind the "New Conversation" banner. Starting the
+    // new conversation must carry that prefilled error into the fresh composer
+    // so the user can still send it (draft is consumed on composer mount and the
+    // error on the next send, so it never lingers beyond its use).
+    if (state.sessionId.isNotEmpty && event.sessionId != state.sessionId) {
+      _clearDismissedAlertIds();
+      unawaited(_sessionStorage.savePendingMessageAlerts(const []));
+      emit(state.copyWith(
+        sessionId: event.sessionId,
+        messages: List.unmodifiable(event.messages),
+        pendingMessageAlerts: const [],
+        unreadCount: 0,
+      ));
+      return;
+    }
+
     final chatVisible =
         state.isChatOpen && CovaoneChatController.panelOpen.value;
 

@@ -35,8 +35,7 @@ class AudioService {
         // iOS: AVAudioSessionCategoryPlayback lets audio play even when the
         // hardware ringer switch is flipped to silent.
         avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions:
-            AVAudioSessionCategoryOptions.duckOthers,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.duckOthers,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
         avAudioSessionRouteSharingPolicy:
             AVAudioSessionRouteSharingPolicy.defaultPolicy,
@@ -52,9 +51,9 @@ class AudioService {
         androidWillPauseWhenDucked: false,
       ));
       _sessionReady = true;
-      debugPrint('[Covaone Audio] session configured');
+      // debugPrint('[Covaone Audio] session configured');
     } catch (e) {
-      debugPrint('[Covaone Audio] init failed: $e');
+      // debugPrint('[Covaone Audio] init failed: $e');
     }
   }
 
@@ -75,7 +74,7 @@ class AudioService {
       await _ringtonePlayer.seek(Duration.zero);
       await _ringtonePlayer.play();
     } catch (e) {
-      debugPrint('[Covaone Audio] playRingtone failed: $e');
+      // debugPrint('[Covaone Audio] playRingtone failed: $e');
     }
   }
 
@@ -83,7 +82,7 @@ class AudioService {
     try {
       await _ringtonePlayer.stop();
     } catch (e) {
-      debugPrint('[Covaone Audio] stopRingtone: $e');
+      // debugPrint('[Covaone Audio] stopRingtone: $e');
     }
   }
 
@@ -104,7 +103,7 @@ class AudioService {
       await _notificationPlayer.seek(Duration.zero);
       await _notificationPlayer.play();
     } catch (e) {
-      debugPrint('[Covaone Audio] playMessageNotification failed: $e');
+      // debugPrint('[Covaone Audio] playMessageNotification failed: $e');
     }
   }
 

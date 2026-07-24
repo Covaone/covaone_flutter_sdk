@@ -68,8 +68,8 @@ class WebRtcService {
 
     // 2. Fetch TURN credentials and microphone in parallel.
     final iceServersFuture = _turnIceService.fetchTurnIceServers();
-    final mediaFuture = navigator.mediaDevices
-        .getUserMedia({'audio': true, 'video': false});
+    final mediaFuture =
+        navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
 
     final results = await Future.wait([iceServersFuture, mediaFuture]);
     final iceServers = results[0] as List<Map<String, dynamic>>;
@@ -99,18 +99,17 @@ class WebRtcService {
     };
 
     _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
-      debugPrint('[Covaone WebRTC] ICE connection state: $state');
+      // debugPrint('[Covaone WebRTC] ICE connection state: $state');
       if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
         _notifyConnectionFailed(onPeerConnectionFailed);
       }
     };
 
     _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
-      debugPrint('[Covaone WebRTC] connection state: $state');
+      // debugPrint('[Covaone WebRTC] connection state: $state');
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         _notifyPeerConnected(onPeerConnected);
-      } else if (state ==
-          RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
         _notifyConnectionFailed(onPeerConnectionFailed);
       }
     };
@@ -189,7 +188,7 @@ class WebRtcService {
         ),
       );
     } catch (e) {
-      debugPrint('[Covaone WebRTC] addIceCandidate error: $e');
+      // debugPrint('[Covaone WebRTC] addIceCandidate error: $e');
     }
   }
 
