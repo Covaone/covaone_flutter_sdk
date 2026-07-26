@@ -7,6 +7,7 @@ import '../../core/chat_controller.dart';
 import '../../data/local/session_storage.dart';
 import '../../data/models/message_error_info.dart';
 import '../../data/models/message_model.dart';
+import '../../data/models/message_send_status.dart';
 import '../../data/models/session_model.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../services/audio_service.dart';
@@ -55,6 +56,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
     // ── Messaging ─────────────────────────────────────────────────────────────
     on<SendTextMessageEvent>(_onSendText);
+    on<RetryFailedMessageEvent>(_onRetryFailedMessage);
     on<SendFileMessageEvent>(_onSendFile);
     on<MessageReceivedEvent>(_onMessageReceived);
     on<TypingStartedEvent>(_onTypingStarted);
@@ -302,7 +304,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   // ── Message handlers ──────────────────────────────────────────────────────
 
-  void _onSendText(SendTextMessageEvent event, Emitter<ChatState> emit) {
+  Future<void> _onSendText(
+      SendTextMessageEvent event, Emitter<ChatState> emit) async {
     if (state.sessionId.isEmpty) return;
 
     final optimistic = MessageModel.optimistic(
@@ -318,12 +321,61 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     ));
     _syncSessionMessages(messages);
 
-    _socketService.sendMessage(
+    final ack = await _socketService.sendMessage(
       state.sessionId,
       event.text,
+      clientMessageId: optimistic.messageId,
       errorInfo: errorInfo,
     );
-    emit(state.copyWith(isSending: false));
+    if (isClosed) return;
+
+    final updated = _withSendStatus(
+      state.messages,
+      optimistic.messageId,
+      ack.ok ? MessageSendStatus.sent : MessageSendStatus.failed,
+    );
+    emit(state.copyWith(messages: updated, isSending: false));
+    _syncSessionMessages(updated);
+  }
+
+  Future<void> _onRetryFailedMessage(
+      RetryFailedMessageEvent event, Emitter<ChatState> emit) async {
+    if (state.sessionId.isEmpty) return;
+
+    MessageModel? target;
+    for (final m in state.messages) {
+      if (m.messageId == event.messageId &&
+          m.isFromCustomer &&
+          m.sendStatus == MessageSendStatus.failed &&
+          !m.hasAttachment) {
+        target = m;
+        break;
+      }
+    }
+    if (target == null) return;
+
+    final pending = _withSendStatus(
+      state.messages,
+      target.messageId,
+      MessageSendStatus.pending,
+    );
+    emit(state.copyWith(messages: pending, isSending: true));
+    _syncSessionMessages(pending);
+
+    final ack = await _socketService.sendMessage(
+      state.sessionId,
+      target.message,
+      clientMessageId: target.messageId,
+    );
+    if (isClosed) return;
+
+    final updated = _withSendStatus(
+      state.messages,
+      target.messageId,
+      ack.ok ? MessageSendStatus.sent : MessageSendStatus.failed,
+    );
+    emit(state.copyWith(messages: updated, isSending: false));
+    _syncSessionMessages(updated);
   }
 
   Future<void> _onSendFile(
@@ -342,6 +394,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       hasAttachment: true,
       fileUrl: null, // Will be replaced on success
       timeCreated: DateTime.now(),
+      sendStatus: MessageSendStatus.pending,
     );
 
     final messages = [...state.messages, optimistic];
@@ -363,11 +416,35 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         messageType: 'QUERY',
         origin: 'frontend',
       );
+      if (isClosed) return;
+      final updated = _withSendStatus(
+        state.messages,
+        optimistic.messageId,
+        MessageSendStatus.sent,
+      );
+      emit(state.copyWith(messages: updated, isSending: false));
+      _syncSessionMessages(updated);
     } catch (e) {
-      // Non-fatal — the optimistic message stays in the list.
-    } finally {
-      emit(state.copyWith(isSending: false));
+      if (isClosed) return;
+      final updated = _withSendStatus(
+        state.messages,
+        optimistic.messageId,
+        MessageSendStatus.failed,
+      );
+      emit(state.copyWith(messages: updated, isSending: false));
+      _syncSessionMessages(updated);
     }
+  }
+
+  List<MessageModel> _withSendStatus(
+    List<MessageModel> messages,
+    String messageId,
+    MessageSendStatus status,
+  ) {
+    return [
+      for (final m in messages)
+        if (m.messageId == messageId) m.copyWith(sendStatus: status) else m,
+    ];
   }
 
   void _onTypingStarted(TypingStartedEvent event, Emitter<ChatState> emit) {

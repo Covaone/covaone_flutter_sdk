@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 import 'package:uuid/uuid.dart';
 
+import 'message_send_status.dart';
+
 /// Discriminates the intent of a [MessageModel].
 /// Names are UPPERCASE to mirror the server-side `message_type` field values.
 // ignore: constant_identifier_names
@@ -46,6 +48,9 @@ class MessageModel extends Equatable {
   final String? fileUrl;
   final DateTime timeCreated;
 
+  /// Local delivery status for outbound messages. Server history defaults to [sent].
+  final MessageSendStatus sendStatus;
+
   const MessageModel({
     required this.messageId,
     required this.message,
@@ -55,6 +60,7 @@ class MessageModel extends Equatable {
     required this.hasAttachment,
     this.fileUrl,
     required this.timeCreated,
+    this.sendStatus = MessageSendStatus.sent,
   });
 
   /// Returns true when [fileUrl] points to a common image format.
@@ -100,6 +106,8 @@ class MessageModel extends Equatable {
       hasAttachment: json['has_attachment'] as bool? ?? false,
       fileUrl: json['file_url'] as String?,
       timeCreated: _parseDateTime(json['time_created']),
+      // Server payloads omit this; treat history as successfully delivered.
+      sendStatus: MessageSendStatus.fromString(json['send_status'] as String?),
     );
   }
 
@@ -112,9 +120,10 @@ class MessageModel extends Equatable {
         'has_attachment': hasAttachment,
         'file_url': fileUrl,
         'time_created': timeCreated.toIso8601String(),
+        'send_status': sendStatus.value,
       };
 
-  /// Constructs an optimistic customer message before the server echo arrives.
+  /// Constructs an optimistic customer message before the server ACK arrives.
   factory MessageModel.optimistic({
     required String text,
     required String sessionId,
@@ -127,6 +136,7 @@ class MessageModel extends Equatable {
       origin: 'frontend',
       hasAttachment: false,
       timeCreated: DateTime.now(),
+      sendStatus: MessageSendStatus.pending,
     );
   }
 
@@ -139,6 +149,7 @@ class MessageModel extends Equatable {
     bool? hasAttachment,
     String? fileUrl,
     DateTime? timeCreated,
+    MessageSendStatus? sendStatus,
   }) =>
       MessageModel(
         messageId: messageId ?? this.messageId,
@@ -149,6 +160,7 @@ class MessageModel extends Equatable {
         hasAttachment: hasAttachment ?? this.hasAttachment,
         fileUrl: fileUrl ?? this.fileUrl,
         timeCreated: timeCreated ?? this.timeCreated,
+        sendStatus: sendStatus ?? this.sendStatus,
       );
 
   static DateTime _parseDateTime(dynamic value) {
@@ -167,5 +179,6 @@ class MessageModel extends Equatable {
         hasAttachment,
         fileUrl,
         timeCreated,
+        sendStatus,
       ];
 }

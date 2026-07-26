@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/models/message_model.dart';
+import '../../../data/models/message_send_status.dart';
 import '../../shared/platform_loader.dart';
 import '../../shared/covaone_theme.dart';
 
@@ -11,11 +12,13 @@ import '../../shared/covaone_theme.dart';
 class UserMessageBubble extends StatelessWidget {
   final MessageModel message;
   final Color themeColor;
+  final VoidCallback? onRetry;
 
   const UserMessageBubble({
     super.key,
     required this.message,
     required this.themeColor,
+    this.onRetry,
   });
 
   @override
@@ -47,9 +50,18 @@ class UserMessageBubble extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.only(right: 16, bottom: 4),
-              child: Text(
-                _formatTime(message.timeCreated),
-                style: CovaoneTheme.captionStyle(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _formatTime(message.timeCreated),
+                    style: CovaoneTheme.captionStyle(),
+                  ),
+                  if (message.sendStatus != MessageSendStatus.sent) ...[
+                    const SizedBox(width: 6),
+                    _buildSendStatus(),
+                  ],
+                ],
               ),
             ),
           ],
@@ -59,6 +71,35 @@ class UserMessageBubble extends StatelessWidget {
         .animate()
         .slideX(begin: 0.3, end: 0, duration: 200.ms, curve: Curves.easeOut)
         .fadeIn(duration: 200.ms);
+  }
+
+  Widget _buildSendStatus() {
+    switch (message.sendStatus) {
+      case MessageSendStatus.pending:
+        return Icon(
+          Icons.schedule,
+          size: 12,
+          color: Colors.grey.shade500,
+        );
+      case MessageSendStatus.failed:
+        return GestureDetector(
+          onTap: onRetry,
+          behavior: HitTestBehavior.opaque,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 12, color: Colors.red.shade400),
+              const SizedBox(width: 3),
+              Text(
+                'Tap to retry',
+                style: CovaoneTheme.captionStyle(color: Colors.red.shade400),
+              ),
+            ],
+          ),
+        );
+      case MessageSendStatus.sent:
+        return const SizedBox.shrink();
+    }
   }
 
   Widget _buildContent() {

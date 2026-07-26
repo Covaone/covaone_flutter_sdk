@@ -45,6 +45,9 @@ abstract final class CovaoneConstants {
   static const int socketReconnectionAttempts = 3;
   static const int socketReconnectionDelayMs = 1000;
 
+  /// How long to wait for a Socket.IO `send_message` acknowledgement.
+  static const Duration socketSendAckTimeout = Duration(seconds: 10);
+
   // ── Misc ─────────────────────────────────────────────────────────────────
   static const String sdkVersion = '1.0.0';
   static const String socketJoinEvent = 'join';

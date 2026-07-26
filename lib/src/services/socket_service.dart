@@ -6,6 +6,40 @@ import '../core/constants.dart';
 import '../data/models/message_error_info.dart';
 import '../data/models/message_model.dart';
 
+/// Result of a Socket.IO `send_message` acknowledgement.
+class SendMessageAck {
+  final bool ok;
+  final String? clientMessageId;
+  final String? error;
+
+  const SendMessageAck({
+    required this.ok,
+    this.clientMessageId,
+    this.error,
+  });
+
+  factory SendMessageAck.fromResponse(dynamic response) {
+    if (response is Map) {
+      final map = Map<String, dynamic>.from(response);
+      final status = map['status']?.toString().toLowerCase();
+      return SendMessageAck(
+        ok: status == 'ok',
+        clientMessageId: map['client_message_id']?.toString() ??
+            map['clientMessageId']?.toString(),
+        error: map['error']?.toString(),
+      );
+    }
+    // Some servers ack with a bare string / bool.
+    if (response == true || response == 'ok') {
+      return const SendMessageAck(ok: true);
+    }
+    return const SendMessageAck(ok: false, error: 'unexpected_ack');
+  }
+
+  factory SendMessageAck.failed(String error) =>
+      SendMessageAck(ok: false, error: error);
+}
+
 /// Manages the Socket.IO connection to the Covaone real-time server.
 ///
 /// The service exposes typed [Stream]s for each category of inbound event
@@ -84,21 +118,50 @@ class SocketService {
 
   // ── Outbound events ───────────────────────────────────────────────────────
 
-  void sendMessage(
+  /// Emits `send_message` and waits for a Socket.IO acknowledgement.
+  ///
+  /// Returns [SendMessageAck.failed] when the socket is disconnected or the
+  /// server does not ACK within [CovaoneConstants.socketSendAckTimeout].
+  Future<SendMessageAck> sendMessage(
     String sessionId,
     String text, {
+    required String clientMessageId,
     MessageErrorInfo? errorInfo,
-  }) {
-    _socket?.emit(CovaoneConstants.socketSendMessageEvent, {
-      'room': sessionId,
-      'messageData': {
-        'origin': 'frontend',
-        'message': text,
-        'message_type': MessageType.QUERY.value,
-        'file': null,
-        'error-info': errorInfo?.toJson(),
+  }) async {
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      return SendMessageAck.failed('not_connected');
+    }
+
+    final completer = Completer<SendMessageAck>();
+    socket.emitWithAck(
+      CovaoneConstants.socketSendMessageEvent,
+      {
+        'room': sessionId,
+        'messageData': {
+          'origin': 'frontend',
+          'message': text,
+          'message_type': MessageType.QUERY.value,
+          'file': null,
+          'client_message_id': clientMessageId,
+          'error-info': errorInfo?.toJson(),
+        },
       },
-    });
+      ack: (dynamic response) {
+        if (!completer.isCompleted) {
+          completer.complete(SendMessageAck.fromResponse(response));
+        }
+      },
+    );
+
+    try {
+      return await completer.future.timeout(
+        CovaoneConstants.socketSendAckTimeout,
+        onTimeout: () => SendMessageAck.failed('timeout'),
+      );
+    } catch (e) {
+      return SendMessageAck.failed(e.toString());
+    }
   }
 
   /// Generic emit for call-signalling events (accept, answer, reject, end,

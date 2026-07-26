@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../blocs/chat/chat_bloc.dart';
 import '../../../blocs/session/session_bloc.dart';
 import '../../../data/models/message_model.dart';
+import '../../../data/models/message_send_status.dart';
 import 'agent_message_bubble.dart';
 import 'message_bubble_factory.dart';
 
@@ -55,8 +56,18 @@ class MessagesList extends StatelessWidget {
                 if (item == _typingMarker) {
                   return const AgentMessageBubble(isTyping: true);
                 }
+                final msg = item as MessageModel;
                 return MessageBubbleFactory.build(
-                    item as MessageModel, themeColor);
+                  msg,
+                  themeColor,
+                  onRetry: msg.sendStatus == MessageSendStatus.failed &&
+                          msg.isFromCustomer &&
+                          !msg.hasAttachment
+                      ? () => context.read<ChatBloc>().add(
+                            RetryFailedMessageEvent(messageId: msg.messageId),
+                          )
+                      : null,
+                );
               },
             );
           },

@@ -81,6 +81,14 @@ class SendTextMessageEvent extends ChatEvent {
   List<Object?> get props => [text];
 }
 
+/// Re-emit a previously failed outbound text message (same client id).
+class RetryFailedMessageEvent extends ChatEvent {
+  final String messageId;
+  const RetryFailedMessageEvent({required this.messageId});
+  @override
+  List<Object?> get props => [messageId];
+}
+
 /// Upload a file attachment via REST then emit a message.
 class SendFileMessageEvent extends ChatEvent {
   final String filename;
