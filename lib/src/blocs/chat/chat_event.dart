@@ -63,7 +63,10 @@ class FetchMessagesEvent extends ChatEvent {
   List<Object?> get props => [sessionId];
 }
 
-/// Connects the socket (called after lead-capture form succeeds).
+/// Ensures the socket is connected (lead-capture success, app resume, etc.).
+///
+/// Opens a fresh connection when the previous one is dead — does not only
+/// re-join an already-live socket.
 class SocketConnectEvent extends ChatEvent {
   final String sessionId;
   const SocketConnectEvent({required this.sessionId});

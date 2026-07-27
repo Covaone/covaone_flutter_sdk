@@ -42,8 +42,12 @@ abstract final class CovaoneConstants {
 
   /// Default WebSocket / Socket.IO server base URL.
   static const String defaultWsBase = 'https://sync-c.covaone.com/';
-  static const int socketReconnectionAttempts = 3;
+  static const int socketReconnectionAttempts = 20;
   static const int socketReconnectionDelayMs = 1000;
+
+  /// How long [SocketService.sendMessage] waits for an in-flight connect
+  /// before failing with `not_connected` (covers first-message races).
+  static const Duration socketConnectWaitTimeout = Duration(seconds: 8);
 
   /// How long to wait for a Socket.IO `send_message` acknowledgement.
   static const Duration socketSendAckTimeout = Duration(seconds: 10);

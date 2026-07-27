@@ -50,6 +50,11 @@ class SendMessageAck {
 /// the socket only carries signalling (SDP, ICE candidates).
 class SocketService {
   io.Socket? _socket;
+  String? _wsBase;
+  String? _sessionId;
+
+  /// Completes when the current connect attempt succeeds.
+  Completer<void>? _connectCompleter;
 
   // ── Stream controllers ────────────────────────────────────────────────────
 
@@ -67,18 +72,41 @@ class SocketService {
 
   bool get isConnected => _socket?.connected ?? false;
 
+  /// Last ws base / session used for [connect]. Useful for resume reconnect.
+  String? get wsBase => _wsBase;
+  String? get sessionId => _sessionId;
+
   // ── Connection lifecycle ──────────────────────────────────────────────────
 
   void connect(String wsBase, String sessionId) {
+    _wsBase = wsBase;
+    _sessionId = sessionId;
+
     if (_socket != null && _socket!.connected) {
       _emitJoin(sessionId);
+      _completeConnect();
       return;
     }
+
+    // In-flight connect: keep the existing socket; join will use [_sessionId].
+    if (_socket != null &&
+        _connectCompleter != null &&
+        !_connectCompleter!.isCompleted) {
+      return;
+    }
+
+    // Dead / exhausted socket — tear down before opening a fresh connection.
+    if (_socket != null) {
+      _tearDownSocket();
+    }
+
+    _connectCompleter = Completer<void>();
 
     _socket = io.io(
       wsBase,
       io.OptionBuilder()
           .setTransports(['websocket', 'polling'])
+          .enableForceNew()
           .enableAutoConnect()
           .enableReconnection()
           .setReconnectionAttempts(CovaoneConstants.socketReconnectionAttempts)
@@ -89,10 +117,20 @@ class SocketService {
     _socket!
       ..on('connect', (_) {
         // debugPrint('[Covaone Socket] connected');
-        _emitJoin(sessionId);
+        final id = _sessionId;
+        if (id != null) _emitJoin(id);
+        _completeConnect();
       })
       ..on('disconnect', (_) {
         // debugPrint('[Covaone Socket] disconnected');
+      })
+      // Manager-level: attempts exhausted without ever connecting leaves a
+      // zombie socket + incomplete completer unless we complete here.
+      ..onReconnectFailed((_) {
+        final completer = _connectCompleter;
+        if (completer != null && !completer.isCompleted) {
+          completer.completeError(StateError('reconnect_failed'));
+        }
       })
       ..on(CovaoneConstants.socketSendMessageEvent, _onMessage)
       ..on(CovaoneConstants.socketCallInviteEvent, _onCallInvite)
@@ -105,33 +143,108 @@ class SocketService {
   }
 
   void disconnect() {
-    _socket?.disconnect();
-    _socket?.dispose();
-    _socket = null;
+    _tearDownSocket();
+    _wsBase = null;
+    _sessionId = null;
   }
 
-  /// Re-joins an existing socket connection with a (possibly new) session ID.
+  /// Ensures a live connection for [sessionId], reconnecting when needed.
+  ///
+  /// Prefer this over [reconnect] from UI/lifecycle paths — it actually opens
+  /// a new socket when the previous one is dead (e.g. after backgrounding).
+  Future<bool> ensureConnected(
+    String wsBase,
+    String sessionId, {
+    Duration? timeout,
+  }) async {
+    _wsBase = wsBase;
+    _sessionId = sessionId;
+
+    if (isConnected) {
+      _emitJoin(sessionId);
+      return true;
+    }
+
+    connect(wsBase, sessionId);
+    final wait = timeout ?? CovaoneConstants.socketConnectWaitTimeout;
+    var ready = await waitUntilConnected(timeout: wait);
+    if (ready) return true;
+
+    // Break zombie in-flight / exhausted-reconnect state and try once more.
+    return _forceReconnectAndWait(wsBase, sessionId, timeout: wait);
+  }
+
+  /// Waits for an in-flight [connect] to succeed, or returns immediately if
+  /// already connected / nothing is connecting.
+  Future<bool> waitUntilConnected({Duration? timeout}) async {
+    if (isConnected) return true;
+
+    final completer = _connectCompleter;
+    if (completer == null || completer.isCompleted) {
+      return false;
+    }
+
+    try {
+      await completer.future.timeout(
+        timeout ?? CovaoneConstants.socketConnectWaitTimeout,
+      );
+      return isConnected;
+    } on TimeoutException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Re-joins when already connected; otherwise opens a new connection using
+  /// the last known [wsBase].
+  ///
+  /// Prefer [ensureConnected] when the ws base is available from config.
   void reconnect(String sessionId) {
-    if (_socket == null || !_socket!.connected) return;
-    _emitJoin(sessionId);
+    final base = _wsBase;
+    if (base == null) {
+      // Cannot open a socket without a base URL; join-only when live.
+      if (isConnected) _emitJoin(sessionId);
+      return;
+    }
+    connect(base, sessionId);
   }
 
   // ── Outbound events ───────────────────────────────────────────────────────
 
   /// Emits `send_message` and waits for a Socket.IO acknowledgement.
   ///
-  /// Returns [SendMessageAck.failed] when the socket is disconnected or the
-  /// server does not ACK within [CovaoneConstants.socketSendAckTimeout].
+  /// If the socket is still connecting (typical for the first message after
+  /// profile setup), waits up to [CovaoneConstants.socketConnectWaitTimeout]
+  /// and will force a reconnect when a prior connection died.
+  ///
+  /// Returns [SendMessageAck.failed] when the socket cannot be made ready or
+  /// the server does not ACK within [CovaoneConstants.socketSendAckTimeout].
   Future<SendMessageAck> sendMessage(
     String sessionId,
     String text, {
     required String clientMessageId,
     MessageErrorInfo? errorInfo,
   }) async {
+    _sessionId = sessionId;
+
+    if (!isConnected) {
+      var ready = await waitUntilConnected();
+      if (!ready && _wsBase != null) {
+        ready = await _forceReconnectAndWait(_wsBase!, sessionId);
+      }
+      if (!ready) {
+        return SendMessageAck.failed('not_connected');
+      }
+    }
+
     final socket = _socket;
     if (socket == null || !socket.connected) {
       return SendMessageAck.failed('not_connected');
     }
+
+    // Ordered with send on the same connection so the room is joined first.
+    _emitJoin(sessionId);
 
     final completer = Completer<SendMessageAck>();
     socket.emitWithAck(
@@ -210,9 +323,44 @@ class SocketService {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
+  Future<bool> _forceReconnectAndWait(
+    String wsBase,
+    String sessionId, {
+    Duration? timeout,
+  }) async {
+    _tearDownSocket();
+    connect(wsBase, sessionId);
+    return waitUntilConnected(
+      timeout: timeout ?? CovaoneConstants.socketConnectWaitTimeout,
+    );
+  }
+
   void _emitJoin(String sessionId) {
     _socket?.emit(CovaoneConstants.socketJoinEvent, sessionId);
     // debugPrint('[Covaone Socket] joined room $sessionId');
+  }
+
+  void _completeConnect() {
+    final completer = _connectCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
+  }
+
+  void _tearDownSocket() {
+    final socket = _socket;
+    _socket = null;
+    try {
+      socket?.disconnect();
+      socket?.dispose();
+    } catch (_) {
+      // Ignore dispose races during reconnect.
+    }
+    final completer = _connectCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.completeError(StateError('socket_torn_down'));
+    }
+    _connectCompleter = null;
   }
 
   Map<String, dynamic> _toMap(dynamic data) {

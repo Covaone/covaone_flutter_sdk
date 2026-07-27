@@ -80,6 +80,7 @@ abstract final class CovaoneDI {
         socketService: sl(),
         audioService: sl(),
         sessionBloc: sl(),
+        config: sl(),
       ),
     );
 

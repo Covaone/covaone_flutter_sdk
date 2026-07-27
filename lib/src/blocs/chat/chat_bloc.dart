@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../core/chat_controller.dart';
+import '../../core/config.dart';
 import '../../data/local/session_storage.dart';
 import '../../data/models/message_error_info.dart';
 import '../../data/models/message_model.dart';
@@ -23,6 +24,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final SocketService _socketService;
   final AudioService _audioService;
   final SessionBloc _sessionBloc;
+  final CovaoneConfig _config;
 
   StreamSubscription<MessageModel>? _messageSub;
   StreamSubscription<SessionState>? _sessionSub;
@@ -37,11 +39,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     required SocketService socketService,
     required AudioService audioService,
     required SessionBloc sessionBloc,
+    required CovaoneConfig config,
   })  : _chatRepository = chatRepository,
         _sessionStorage = sessionStorage,
         _socketService = socketService,
         _audioService = audioService,
         _sessionBloc = sessionBloc,
+        _config = config,
         super(const ChatState()) {
     // ── Navigation ────────────────────────────────────────────────────────────
     on<ChatTabChangedEvent>(_onTabChanged);
@@ -297,32 +301,59 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
   }
 
-  void _onSocketConnect(SocketConnectEvent event, Emitter<ChatState> emit) {
-    // Delegate the actual connection to SocketService (no-op if already connected).
-    _socketService.reconnect(event.sessionId);
+  Future<void> _onSocketConnect(
+      SocketConnectEvent event, Emitter<ChatState> emit) async {
+    // Actually (re)open the socket when dead — unlike the old reconnect()
+    // path which no-op'd while disconnected after background / exhausted attempts.
+    await _socketService.ensureConnected(_config.wsBase, event.sessionId);
   }
 
   // ── Message handlers ──────────────────────────────────────────────────────
 
+  String? _resolveSessionId() {
+    if (state.sessionId.isNotEmpty) return state.sessionId;
+    return _sessionBloc.currentSessionId;
+  }
+
   Future<void> _onSendText(
       SendTextMessageEvent event, Emitter<ChatState> emit) async {
-    if (state.sessionId.isEmpty) return;
+    final sessionId = _resolveSessionId();
+    if (sessionId == null || sessionId.isEmpty) {
+      emit(state.copyWith(error: 'No active session'));
+      return;
+    }
 
     final optimistic = MessageModel.optimistic(
       text: event.text,
-      sessionId: state.sessionId,
+      sessionId: sessionId,
     );
     final messages = [...state.messages, optimistic];
     final errorInfo = state.pendingErrorInfo;
     emit(state.copyWith(
+      sessionId: sessionId,
       messages: messages,
       isSending: true,
       pendingErrorInfo: null,
+      error: null,
     ));
     _syncSessionMessages(messages);
 
+    final connected =
+        await _socketService.ensureConnected(_config.wsBase, sessionId);
+    if (isClosed) return;
+    if (!connected) {
+      final updated = _withSendStatus(
+        state.messages,
+        optimistic.messageId,
+        MessageSendStatus.failed,
+      );
+      emit(state.copyWith(messages: updated, isSending: false));
+      _syncSessionMessages(updated);
+      return;
+    }
+
     final ack = await _socketService.sendMessage(
-      state.sessionId,
+      sessionId,
       event.text,
       clientMessageId: optimistic.messageId,
       errorInfo: errorInfo,
@@ -340,7 +371,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   Future<void> _onRetryFailedMessage(
       RetryFailedMessageEvent event, Emitter<ChatState> emit) async {
-    if (state.sessionId.isEmpty) return;
+    final sessionId = _resolveSessionId();
+    if (sessionId == null || sessionId.isEmpty) {
+      emit(state.copyWith(error: 'No active session'));
+      return;
+    }
 
     MessageModel? target;
     for (final m in state.messages) {
@@ -359,11 +394,30 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       target.messageId,
       MessageSendStatus.pending,
     );
-    emit(state.copyWith(messages: pending, isSending: true));
+    emit(state.copyWith(
+      sessionId: sessionId,
+      messages: pending,
+      isSending: true,
+      error: null,
+    ));
     _syncSessionMessages(pending);
 
+    final connected =
+        await _socketService.ensureConnected(_config.wsBase, sessionId);
+    if (isClosed) return;
+    if (!connected) {
+      final updated = _withSendStatus(
+        state.messages,
+        target.messageId,
+        MessageSendStatus.failed,
+      );
+      emit(state.copyWith(messages: updated, isSending: false));
+      _syncSessionMessages(updated);
+      return;
+    }
+
     final ack = await _socketService.sendMessage(
-      state.sessionId,
+      sessionId,
       target.message,
       clientMessageId: target.messageId,
     );
@@ -380,9 +434,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   Future<void> _onSendFile(
       SendFileMessageEvent event, Emitter<ChatState> emit) async {
-    if (state.sessionId.isEmpty) return;
+    final sessionId = _resolveSessionId();
+    if (sessionId == null || sessionId.isEmpty) {
+      emit(state.copyWith(error: 'No active session'));
+      return;
+    }
 
-    emit(state.copyWith(isSending: true));
+    emit(state.copyWith(isSending: true, sessionId: sessionId, error: null));
 
     // Optimistic file message (shows local preview while uploading).
     final optimistic = MessageModel(
@@ -410,7 +468,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
     try {
       await _chatRepository.uploadFileFromBase64(
-        conversationId: state.sessionId,
+        conversationId: sessionId,
         filename: event.filename,
         base64Content: event.base64Content,
         messageType: 'QUERY',
