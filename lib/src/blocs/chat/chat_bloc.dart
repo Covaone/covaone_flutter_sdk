@@ -214,6 +214,14 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       draftMessage: event.draftMessage,
       pendingErrorInfo: event.errorInfo,
     ));
+
+    // Refresh the realtime link when opening chat — covers returning to a
+    // conversation after the host app was backgrounded without a full resume
+    // path (e.g. panel closed while OS kept the process alive).
+    final sessionId = _resolveSessionId();
+    if (sessionId != null && sessionId.isNotEmpty) {
+      add(SocketConnectEvent(sessionId: sessionId, force: true));
+    }
   }
 
   void _onCloseChat(CloseChatEvent event, Emitter<ChatState> emit) {
@@ -305,7 +313,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       SocketConnectEvent event, Emitter<ChatState> emit) async {
     // Actually (re)open the socket when dead — unlike the old reconnect()
     // path which no-op'd while disconnected after background / exhausted attempts.
-    await _socketService.ensureConnected(_config.wsBase, event.sessionId);
+    // [force] is required after Android resume: the client often still reports
+    // connected while the server has already dropped the socket.
+    await _socketService.ensureConnected(
+      _config.wsBase,
+      event.sessionId,
+      force: event.force,
+    );
   }
 
   // ── Message handlers ──────────────────────────────────────────────────────
@@ -529,7 +543,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     emit(state.copyWith(
       messages: updated,
       isTyping: false,
-      isSending: false,
       unreadCount: chatVisible ? state.unreadCount : state.unreadCount + 1,
       pendingMessageAlerts: nextAlerts,
     ));

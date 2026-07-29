@@ -60,7 +60,9 @@ class _LeadCaptureFormState extends State<LeadCaptureForm>
   void _collapseAndConnect(String sessionId) {
     _animCtrl.reverse().then((_) {
       if (mounted) {
-        context.read<ChatBloc>().add(SocketConnectEvent(sessionId: sessionId));
+        context.read<ChatBloc>().add(
+              SocketConnectEvent(sessionId: sessionId, force: true),
+            );
       }
     });
   }

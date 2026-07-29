@@ -66,12 +66,14 @@ class FetchMessagesEvent extends ChatEvent {
 /// Ensures the socket is connected (lead-capture success, app resume, etc.).
 ///
 /// Opens a fresh connection when the previous one is dead — does not only
-/// re-join an already-live socket.
+/// re-join an already-live socket. Pass [force] after app resume so a zombie
+/// Android socket (`connected == true` but dead transport) is replaced.
 class SocketConnectEvent extends ChatEvent {
   final String sessionId;
-  const SocketConnectEvent({required this.sessionId});
+  final bool force;
+  const SocketConnectEvent({required this.sessionId, this.force = false});
   @override
-  List<Object?> get props => [sessionId];
+  List<Object?> get props => [sessionId, force];
 }
 
 // ── Messaging ─────────────────────────────────────────────────────────────────

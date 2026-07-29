@@ -76,10 +76,9 @@ class UserMessageBubble extends StatelessWidget {
   Widget _buildSendStatus() {
     switch (message.sendStatus) {
       case MessageSendStatus.pending:
-        return Icon(
-          Icons.schedule,
-          size: 12,
-          color: Colors.grey.shade500,
+        return Text(
+          'Sending…',
+          style: CovaoneTheme.captionStyle(color: Colors.grey.shade500),
         );
       case MessageSendStatus.failed:
         return GestureDetector(
@@ -91,7 +90,7 @@ class UserMessageBubble extends StatelessWidget {
               Icon(Icons.error_outline, size: 12, color: Colors.red.shade400),
               const SizedBox(width: 3),
               Text(
-                'Tap to retry',
+                'Not delivered · Tap to retry',
                 style: CovaoneTheme.captionStyle(color: Colors.red.shade400),
               ),
             ],

@@ -72,7 +72,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       final sessionId = context.read<ChatBloc>().state.sessionId;
       if (sessionId.isNotEmpty) {
-        context.read<ChatBloc>().add(SocketConnectEvent(sessionId: sessionId));
+        // Always force a fresh socket after resume — Android commonly leaves
+        // a zombie connection that still reports connected.
+        context.read<ChatBloc>().add(
+              SocketConnectEvent(sessionId: sessionId, force: true),
+            );
       }
     }
   }

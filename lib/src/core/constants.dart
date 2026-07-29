@@ -52,6 +52,11 @@ abstract final class CovaoneConstants {
   /// How long to wait for a Socket.IO `send_message` acknowledgement.
   static const Duration socketSendAckTimeout = Duration(seconds: 10);
 
+  /// After this idle window, [SocketService.ensureConnected] treats a still-
+  /// "connected" socket as potentially stale (common on Android after radio
+  /// sleep) and opens a fresh connection before the next send.
+  static const Duration socketStaleAfter = Duration(seconds: 45);
+
   // ── Misc ─────────────────────────────────────────────────────────────────
   static const String sdkVersion = '1.0.0';
   static const String socketJoinEvent = 'join';
