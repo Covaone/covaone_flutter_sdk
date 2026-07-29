@@ -93,8 +93,12 @@ class MessageModel extends Equatable {
 
   factory MessageModel.fromJson(Map<String, dynamic> json) {
     return MessageModel(
+      // Prefer server ids; fall back to the client id so room echoes of our own
+      // sends can be correlated with the optimistic bubble.
       messageId: json['_id'] as String? ??
           json['message_id'] as String? ??
+          json['client_message_id'] as String? ??
+          json['clientMessageId'] as String? ??
           const Uuid().v4(),
       message: json['message'] as String? ?? '',
       messageType: MessageType.fromString(json['message_type'] as String?),

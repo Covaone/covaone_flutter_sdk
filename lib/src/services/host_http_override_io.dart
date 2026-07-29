@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import '../core/constants.dart';
 import 'app_api_error_service.dart';
@@ -213,6 +214,9 @@ class _CovaoneMonitoringHttpClient implements HttpClient {
       inner.connectionFactory = f;
 }
 
+/// Cap captured error bodies so a huge HTML/error page cannot balloon memory.
+const int _maxErrorBodyBytes = 64 * 1024;
+
 class _CovaoneMonitoringHttpClientRequest implements HttpClientRequest {
   final HttpClientRequest inner;
   final String _method;
@@ -235,16 +239,23 @@ class _CovaoneMonitoringHttpClientRequest implements HttpClientRequest {
       final response = await inner.close();
       final statusCode = response.statusCode;
       if (statusCode >= 300 && !_isSdkRequest()) {
+        // Drain + buffer so `error-info.message` gets the real API body
+        // (JSON/object), not only the HTTP reason phrase ("Bad Request").
+        final bytes = await _drainLimited(response, _maxErrorBodyBytes);
         service.report(
           AppApiErrorEvent(
             source: AppApiErrorSource.automaticGlobalHttp,
             method: _method,
             uri: _uri,
             statusCode: statusCode,
-            message: response.reasonPhrase,
+            message: AppApiErrorEvent.normalizeErrorBody(
+              bytes,
+              fallback: response.reasonPhrase,
+            ),
             timestamp: DateTime.now(),
           ),
         );
+        return _BufferedHttpClientResponse(response, bytes);
       }
       return response;
     } on Object catch (error) {
@@ -262,6 +273,25 @@ class _CovaoneMonitoringHttpClientRequest implements HttpClientRequest {
       }
       rethrow;
     }
+  }
+
+  Future<List<int>> _drainLimited(
+    HttpClientResponse response,
+    int maxBytes,
+  ) async {
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in response) {
+      if (builder.length < maxBytes) {
+        final remaining = maxBytes - builder.length;
+        if (chunk.length <= remaining) {
+          builder.add(chunk);
+        } else {
+          builder.add(chunk.sublist(0, remaining));
+        }
+      }
+      // Keep draining so the connection is not left half-open.
+    }
+    return builder.takeBytes();
   }
 
   bool _isSdkRequest() {
@@ -366,4 +396,72 @@ class _CovaoneMonitoringHttpClientRequest implements HttpClientRequest {
   @override
   void abort([Object? exception, StackTrace? stackTrace]) =>
       inner.abort(exception, stackTrace);
+}
+
+/// Replays a drained error response body so the host app can still read it.
+class _BufferedHttpClientResponse extends Stream<List<int>>
+    implements HttpClientResponse {
+  final HttpClientResponse inner;
+  final List<int> bytes;
+
+  _BufferedHttpClientResponse(this.inner, this.bytes);
+
+  @override
+  StreamSubscription<List<int>> listen(
+    void Function(List<int> event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return Stream<List<int>>.fromIterable(
+      bytes.isEmpty ? const <List<int>>[] : <List<int>>[bytes],
+    ).listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
+  }
+
+  @override
+  int get statusCode => inner.statusCode;
+
+  @override
+  String get reasonPhrase => inner.reasonPhrase;
+
+  @override
+  int get contentLength => bytes.length;
+
+  @override
+  HttpClientResponseCompressionState get compressionState =>
+      HttpClientResponseCompressionState.notCompressed;
+
+  @override
+  bool get persistentConnection => inner.persistentConnection;
+
+  @override
+  bool get isRedirect => inner.isRedirect;
+
+  @override
+  List<RedirectInfo> get redirects => inner.redirects;
+
+  @override
+  Future<HttpClientResponse> redirect(
+          [String? method, Uri? url, bool? followLoops]) =>
+      inner.redirect(method, url, followLoops);
+
+  @override
+  HttpHeaders get headers => inner.headers;
+
+  @override
+  List<Cookie> get cookies => inner.cookies;
+
+  @override
+  X509Certificate? get certificate => inner.certificate;
+
+  @override
+  HttpConnectionInfo? get connectionInfo => inner.connectionInfo;
+
+  @override
+  Future<Socket> detachSocket() => inner.detachSocket();
 }

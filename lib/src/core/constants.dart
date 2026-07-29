@@ -57,6 +57,10 @@ abstract final class CovaoneConstants {
   /// sleep) and opens a fresh connection before the next send.
   static const Duration socketStaleAfter = Duration(seconds: 45);
 
+  /// How long to wait for our own room echo after a successful send ACK.
+  /// Missing echo usually means we are not joined to the room.
+  static const Duration socketEchoWaitTimeout = Duration(seconds: 3);
+
   // ── Misc ─────────────────────────────────────────────────────────────────
   static const String sdkVersion = '1.0.0';
   static const String socketJoinEvent = 'join';

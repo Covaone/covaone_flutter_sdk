@@ -442,11 +442,13 @@ class CovaoneChat {
   /// Explicitly reports a host-app API error to the SDK.
   ///
   /// Use this when the app has a non-Dio/non-http transport or custom handling.
+  /// Prefer passing the full response body / error object in [message]
+  /// (Map, List, or String) — not only the HTTP reason phrase.
   static void reportAppApiError({
     int? statusCode,
     Uri? uri,
     String method = 'UNKNOWN',
-    String? message,
+    Object? message,
   }) {
     if (!_initialized || !CovaoneDI.sl.isRegistered<AppApiErrorService>()) {
       return;
@@ -458,7 +460,7 @@ class CovaoneChat {
         method: method.toUpperCase(),
         uri: uri,
         statusCode: statusCode,
-        message: message,
+        message: AppApiErrorEvent.normalizeErrorBody(message),
         timestamp: DateTime.now(),
       ),
     );

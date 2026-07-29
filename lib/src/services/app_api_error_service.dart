@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -24,7 +25,10 @@ class AppApiErrorEvent {
   final String method;
   final Uri? uri;
   final int? statusCode;
-  final String? message;
+
+  /// Full error payload for agents — response body / error object when
+  /// available (Map, List, or String), not just the HTTP reason phrase.
+  final Object? message;
   final DateTime timestamp;
 
   const AppApiErrorEvent({
@@ -49,12 +53,55 @@ class AppApiErrorEvent {
       data: {
         'method': method,
         if (statusCode != null) 'status_code': statusCode,
-        if (message != null && message!.trim().isNotEmpty)
-          'message': message!.trim(),
+        if (message != null) 'message': _socketSafeMessage(message),
         'source': source.name,
         'timestamp': timestamp.toIso8601String(),
       },
     );
+  }
+
+  /// Prefer structured JSON bodies; fall back to a trimmed string.
+  static Object? _socketSafeMessage(Object? raw) {
+    if (raw == null) return null;
+    if (raw is String) {
+      final trimmed = raw.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+    if (raw is Map || raw is List || raw is num || raw is bool) {
+      return raw;
+    }
+    final asString = raw.toString().trim();
+    return asString.isEmpty ? null : asString;
+  }
+
+  /// Normalize a response body / Dio `data` into a socket-safe error payload.
+  static Object? normalizeErrorBody(Object? body, {String? fallback}) {
+    if (body == null) {
+      final trimmed = fallback?.trim();
+      return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+    }
+    if (body is Map || body is List || body is num || body is bool) {
+      return body;
+    }
+    if (body is String) {
+      final trimmed = body.trim();
+      if (trimmed.isEmpty) {
+        final fb = fallback?.trim();
+        return (fb == null || fb.isEmpty) ? null : fb;
+      }
+      try {
+        return jsonDecode(trimmed);
+      } catch (_) {
+        return trimmed;
+      }
+    }
+    if (body is List<int>) {
+      return normalizeErrorBody(
+        utf8.decode(body, allowMalformed: true),
+        fallback: fallback,
+      );
+    }
+    return normalizeErrorBody(body.toString(), fallback: fallback);
   }
 }
 
@@ -124,7 +171,10 @@ class HostAppApiDioInterceptor extends Interceptor {
           method: response.requestOptions.method,
           uri: response.requestOptions.uri,
           statusCode: statusCode,
-          message: response.statusMessage,
+          message: AppApiErrorEvent.normalizeErrorBody(
+            response.data,
+            fallback: response.statusMessage,
+          ),
           timestamp: DateTime.now(),
         ),
       );
@@ -143,7 +193,10 @@ class HostAppApiDioInterceptor extends Interceptor {
             method: err.requestOptions.method,
             uri: err.requestOptions.uri,
             statusCode: statusCode,
-            message: err.message,
+            message: AppApiErrorEvent.normalizeErrorBody(
+              err.response?.data,
+              fallback: err.message ?? err.response?.statusMessage,
+            ),
             timestamp: DateTime.now(),
           ),
         );

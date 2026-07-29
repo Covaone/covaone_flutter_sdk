@@ -283,7 +283,9 @@ class _ApiStatusSectionState extends State<_ApiStatusSection> {
           statusCode: response.statusCode,
           method: 'GET',
           uri: uri,
-          message: response.reasonPhrase,
+          message: response.body.isNotEmpty
+              ? response.body
+              : response.reasonPhrase,
         );
       }
 

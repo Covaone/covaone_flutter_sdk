@@ -96,6 +96,13 @@ class SocketService {
   /// In-flight send ACK completers — failed immediately on disconnect.
   final Set<Completer<SendMessageAck>> _pendingSendAcks = {};
 
+  /// Waiters for our own room echo (`client_message_id`), proving the server
+  /// both accepted the send and that we are joined to the conversation room.
+  final Map<String, Completer<void>> _echoWaiters = {};
+
+  /// Serializes outbound sends so a reconnect cannot interleave two emits.
+  Future<void> _sendChain = Future<void>.value();
+
   // ── Stream controllers ────────────────────────────────────────────────────
 
   final _messagesCtrl = StreamController<MessageModel>.broadcast();
@@ -294,6 +301,31 @@ class SocketService {
     String text, {
     required String clientMessageId,
     MessageErrorInfo? errorInfo,
+  }) {
+    // Chain sends so force-reconnect from one attempt cannot drop another.
+    final previous = _sendChain;
+    final gate = Completer<void>();
+    _sendChain = gate.future;
+
+    return previous.catchError((_) {}).then((_) async {
+      try {
+        return await _sendMessageWithRetry(
+          sessionId,
+          text,
+          clientMessageId: clientMessageId,
+          errorInfo: errorInfo,
+        );
+      } finally {
+        gate.complete();
+      }
+    });
+  }
+
+  Future<SendMessageAck> _sendMessageWithRetry(
+    String sessionId,
+    String text, {
+    required String clientMessageId,
+    MessageErrorInfo? errorInfo,
   }) async {
     _sessionId = sessionId;
 
@@ -320,14 +352,13 @@ class SocketService {
         first.error == 'socket_gone';
     if (!retryable) return first;
 
-    final second = await _sendMessageOnce(
+    return _sendMessageOnce(
       sessionId,
       text,
       clientMessageId: clientMessageId,
       errorInfo: errorInfo,
       forceRefresh: true,
     );
-    return second;
   }
 
   Future<SendMessageAck> _sendMessageOnce(
@@ -357,11 +388,20 @@ class SocketService {
       return SendMessageAck.failed('not_connected');
     }
 
-    // Ordered with send on the same connection so the room is joined first.
+    // Join first, then yield so the server can process membership before send.
+    // Without this, ACK can succeed while we miss the room echo / bot reply.
     _emitJoin(sessionId);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    final completer = Completer<SendMessageAck>();
-    _pendingSendAcks.add(completer);
+    if (_socket != socket || !socket.connected) {
+      _needsReconnect = true;
+      return SendMessageAck.failed('disconnected');
+    }
+
+    final ackCompleter = Completer<SendMessageAck>();
+    final echoCompleter = Completer<void>();
+    _pendingSendAcks.add(ackCompleter);
+    _echoWaiters[clientMessageId] = echoCompleter;
 
     try {
       socket.emitWithAck(
@@ -378,8 +418,8 @@ class SocketService {
           },
         },
         ack: (dynamic response) {
-          if (!completer.isCompleted) {
-            completer.complete(SendMessageAck.fromResponse(
+          if (!ackCompleter.isCompleted) {
+            ackCompleter.complete(SendMessageAck.fromResponse(
               response,
               expectedClientMessageId: clientMessageId,
             ));
@@ -387,23 +427,42 @@ class SocketService {
         },
       );
 
-      final ack = await completer.future.timeout(
+      final ack = await ackCompleter.future.timeout(
         CovaoneConstants.socketSendAckTimeout,
         onTimeout: () => SendMessageAck.failed('timeout'),
       );
 
-      if (ack.ok) {
-        _lastHealthyAt = DateTime.now();
-        _needsReconnect = false;
-      } else if (ack.error == 'timeout') {
-        // Likely a zombie socket — do not trust `connected` on the next attempt.
+      if (!ack.ok) {
+        if (ack.error == 'timeout') {
+          _needsReconnect = true;
+        }
+        return ack;
+      }
+
+      // ACK means the server logged + broadcast. Prefer also seeing our room
+      // echo so we know we are joined (otherwise bot replies never arrive).
+      // Do NOT fail/retry the send on a missing echo — that would duplicate
+      // a message the server already accepted.
+      try {
+        await echoCompleter.future.timeout(
+          CovaoneConstants.socketEchoWaitTimeout,
+        );
+      } on TimeoutException {
+        _emitJoin(sessionId);
         _needsReconnect = true;
       }
+
+      _lastHealthyAt = DateTime.now();
+      _needsReconnect = false;
       return ack;
     } catch (e) {
       return SendMessageAck.failed(e.toString());
     } finally {
-      _pendingSendAcks.remove(completer);
+      _pendingSendAcks.remove(ackCompleter);
+      final pendingEcho = _echoWaiters.remove(clientMessageId);
+      if (pendingEcho != null && !pendingEcho.isCompleted) {
+        pendingEcho.completeError(StateError('send_finished'));
+      }
     }
   }
 
@@ -422,6 +481,18 @@ class SocketService {
       final messageData = raw['messageData'] as Map<String, dynamic>? ?? raw;
       final model = MessageModel.fromJson(messageData);
       _lastHealthyAt = DateTime.now();
+
+      // Complete any waiter for our own echoed send.
+      final clientId = messageData['client_message_id']?.toString() ??
+          messageData['clientMessageId']?.toString() ??
+          (model.isFromCustomer ? model.messageId : null);
+      if (clientId != null) {
+        final waiter = _echoWaiters.remove(clientId);
+        if (waiter != null && !waiter.isCompleted) {
+          waiter.complete();
+        }
+      }
+
       _messagesCtrl.add(model);
     } catch (e) {
       // debugPrint('[Covaone Socket] send_message parse error: $e');
@@ -492,6 +563,13 @@ class SocketService {
     final socket = _socket;
     _socket = null;
     _failPendingSends('socket_gone');
+    final echoWaiters = Map<String, Completer<void>>.from(_echoWaiters);
+    _echoWaiters.clear();
+    for (final waiter in echoWaiters.values) {
+      if (!waiter.isCompleted) {
+        waiter.completeError(StateError('socket_torn_down'));
+      }
+    }
     try {
       socket?.disconnect();
       socket?.dispose();
