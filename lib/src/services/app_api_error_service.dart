@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -61,8 +62,13 @@ class AppApiErrorEvent {
   }
 
   /// Prefer structured JSON bodies; fall back to a trimmed string.
+  /// Never emits raw bytes — Socket.IO would deliver those as a Node Buffer.
   static Object? _socketSafeMessage(Object? raw) {
     if (raw == null) return null;
+    // Re-run through normalize so any leftover bytes become UTF-8 / JSON.
+    if (raw is Uint8List || raw is ByteBuffer || raw is TypedData) {
+      return normalizeErrorBody(raw);
+    }
     if (raw is String) {
       final trimmed = raw.trim();
       return trimmed.isEmpty ? null : trimmed;
@@ -75,11 +81,34 @@ class AppApiErrorEvent {
   }
 
   /// Normalize a response body / Dio `data` into a socket-safe error payload.
+  ///
+  /// Always returns JSON-friendly values (Map / List / String / num / bool).
+  /// Raw [Uint8List] must be UTF-8 decoded first — otherwise Socket.IO sends
+  /// a binary Buffer that frontends cannot usefully read as error text.
   static Object? normalizeErrorBody(Object? body, {String? fallback}) {
     if (body == null) {
       final trimmed = fallback?.trim();
       return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
     }
+
+    // Decode bytes BEFORE `is List` — Uint8List implements List<int> and
+    // would otherwise be shipped as a Socket.IO binary Buffer.
+    if (body is Uint8List) {
+      return normalizeErrorBody(
+        utf8.decode(body, allowMalformed: true),
+        fallback: fallback,
+      );
+    }
+    if (body is ByteBuffer) {
+      return normalizeErrorBody(body.asUint8List(), fallback: fallback);
+    }
+    if (body is TypedData) {
+      return normalizeErrorBody(
+        body.buffer.asUint8List(body.offsetInBytes, body.lengthInBytes),
+        fallback: fallback,
+      );
+    }
+
     if (body is Map || body is List || body is num || body is bool) {
       return body;
     }
@@ -89,19 +118,26 @@ class AppApiErrorEvent {
         final fb = fallback?.trim();
         return (fb == null || fb.isEmpty) ? null : fb;
       }
+      // Strip a raw HTTP envelope if the body accidentally includes headers.
+      final payload = _stripHttpEnvelope(trimmed);
       try {
-        return jsonDecode(trimmed);
+        return jsonDecode(payload);
       } catch (_) {
-        return trimmed;
+        return payload;
       }
     }
-    if (body is List<int>) {
-      return normalizeErrorBody(
-        utf8.decode(body, allowMalformed: true),
-        fallback: fallback,
-      );
-    }
     return normalizeErrorBody(body.toString(), fallback: fallback);
+  }
+
+  /// If [text] looks like a full HTTP response, return the body after headers.
+  static String _stripHttpEnvelope(String text) {
+    if (!text.startsWith('HTTP/')) return text;
+    final separator = text.contains('\r\n\r\n')
+        ? '\r\n\r\n'
+        : (text.contains('\n\n') ? '\n\n' : null);
+    if (separator == null) return text;
+    final body = text.substring(text.indexOf(separator) + separator.length);
+    return body.trim().isEmpty ? text : body.trim();
   }
 }
 

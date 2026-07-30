@@ -10,7 +10,7 @@ Future<void> main() async {
 
   await CovaoneChat.init(
     publicKey:
-        '<your_public_key>', // TODO: replace with your account public key
+        '2acaf325-d699-4695-a943-8fd2aa7b4211', // TODO: replace with your account public key
     // When your app already knows the signed-in user, pass their identity here
     // to skip the in-chat email/name form:
     // apiBase: 'http://localhost:8081/',
@@ -283,9 +283,8 @@ class _ApiStatusSectionState extends State<_ApiStatusSection> {
           statusCode: response.statusCode,
           method: 'GET',
           uri: uri,
-          message: response.body.isNotEmpty
-              ? response.body
-              : response.reasonPhrase,
+          message:
+              response.body.isNotEmpty ? response.body : response.reasonPhrase,
         );
       }
 

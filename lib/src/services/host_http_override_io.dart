@@ -249,7 +249,8 @@ class _CovaoneMonitoringHttpClientRequest implements HttpClientRequest {
             uri: _uri,
             statusCode: statusCode,
             message: AppApiErrorEvent.normalizeErrorBody(
-              bytes,
+              // Decode here so AppApiErrorEvent never holds raw bytes.
+              utf8.decode(bytes, allowMalformed: true),
               fallback: response.reasonPhrase,
             ),
             timestamp: DateTime.now(),
