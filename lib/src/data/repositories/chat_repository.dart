@@ -51,6 +51,23 @@ class ChatRepository {
     return getSession(sessionId);
   }
 
+  /// Calls `POST /register-device` with the host app's FCM token.
+  Future<void> registerDevice({
+    required String sessionId,
+    required String fcmToken,
+    String? platform,
+    String? deviceId,
+    String? appBundleId,
+  }) async {
+    await _apiClient.registerDevice(
+      sessionId: sessionId,
+      fcmToken: fcmToken,
+      platform: platform,
+      deviceId: deviceId,
+      appBundleId: appBundleId,
+    );
+  }
+
   Future<void> _persistSession(SessionModel session) async {
     await _sessionStorage.saveSessionId(session.sessionId);
     await _sessionStorage.saveCachedSession(session);

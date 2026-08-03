@@ -268,6 +268,24 @@ class SessionStorage {
     return list.toSet();
   }
 
+  // ── Push token ────────────────────────────────────────────────────────────
+
+  Future<void> savePendingPushToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(CovaoneConstants.pendingPushTokenKey, token);
+  }
+
+  Future<String?> getPendingPushToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(CovaoneConstants.pendingPushTokenKey);
+    return (token == null || token.isEmpty) ? null : token;
+  }
+
+  Future<void> clearPendingPushToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(CovaoneConstants.pendingPushTokenKey);
+  }
+
   /// Appends [message] into the cached session history (if a cache exists).
   Future<void> appendMessageToCachedSession(MessageModel message) async {
     final cached = await getCachedSession();
@@ -296,6 +314,7 @@ class SessionStorage {
       prefs.remove(CovaoneConstants.lastMessageAlertClearedAtKey),
       prefs.remove(CovaoneConstants.pendingMessageAlertsKey),
       prefs.remove(CovaoneConstants.dismissedMessageAlertIdsKey),
+      prefs.remove(CovaoneConstants.pendingPushTokenKey),
     ]);
   }
 }

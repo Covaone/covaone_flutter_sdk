@@ -30,6 +30,7 @@ import 'src/services/app_api_error_service.dart';
 import 'src/services/webrtc_service.dart';
 import 'src/services/socket_service.dart';
 import 'src/services/audio_service.dart';
+import 'src/services/push_token_service.dart';
 import 'src/ui/launcher/covaone_launcher.dart';
 import 'src/services/host_http_override_stub.dart'
     if (dart.library.io) 'src/services/host_http_override_io.dart' as host_http;
@@ -234,6 +235,10 @@ class CovaoneChat {
         _profileSyncInFlight = false;
       }
       unawaited(_syncUserProfileIfPossible());
+      if (s is SessionLoaded &&
+          CovaoneDI.sl.isRegistered<PushTokenService>()) {
+        unawaited(CovaoneDI.sl<PushTokenService>().onSessionLoaded(s));
+      }
     });
 
     // Kick off session initialisation (loads stored session or creates one).
@@ -242,6 +247,9 @@ class CovaoneChat {
 
     _initialized = true;
     unawaited(_syncUserProfileIfPossible());
+    if (CovaoneDI.sl.isRegistered<PushTokenService>()) {
+      unawaited(CovaoneDI.sl<PushTokenService>().flushIfPossible());
+    }
   }
 
   // ── Launcher widget ───────────────────────────────────────────────────────
@@ -407,6 +415,54 @@ class CovaoneChat {
   /// Alias for [syncUserProfile] to match concise host-app semantics.
   static Future<void> sync() async {
     await syncUserProfile();
+  }
+
+  // ── Push notifications ────────────────────────────────────────────────────
+
+  /// Registers the host app's FCM token with Covaone for end-user push.
+  ///
+  /// The host app owns Firebase / APNs. Call this after obtaining a token
+  /// (and again on [FirebaseMessaging.onTokenRefresh]):
+  ///
+  /// ```dart
+  /// final token = await FirebaseMessaging.instance.getToken();
+  /// await CovaoneChat.registerPushToken(token);
+  /// ```
+  ///
+  /// Tokens are queued until the SDK session has a customer profile
+  /// (`set-profile` / [pushUserProfile]), then posted to `POST /register-device`.
+  static Future<void> registerPushToken(
+    String token, {
+    String? platform,
+    String? deviceId,
+    String? appBundleId,
+  }) async {
+    if (!_initialized) {
+      throw StateError('Call CovaoneChat.init() before registerPushToken().');
+    }
+    await CovaoneDI.sl<PushTokenService>().registerPushToken(
+          token: token,
+          platform: platform,
+          deviceId: deviceId,
+          appBundleId: appBundleId,
+        );
+  }
+
+  /// Opens the support panel when the user taps a Covaone push notification.
+  ///
+  /// Pass the FCM `data` map from `onMessageOpenedApp` / `getInitialMessage`.
+  /// Recognises `type=chat_reply` and `type=incoming_call`.
+  static void handleNotificationTap([Map<String, dynamic>? data]) {
+    if (!_initialized) return;
+    final type = data?['type']?.toString();
+    if (type == 'incoming_call') {
+      // Call invite also arrives over the socket; opening the panel is enough
+      // for the user to see / answer from the launcher.
+      open();
+      return;
+    }
+    // Default: chat reply / generic support push.
+    open();
   }
 
   // ── Host-app API monitoring ───────────────────────────────────────────────

@@ -15,6 +15,7 @@ abstract final class CovaoneConstants {
   static const String pendingMessageAlertsKey = '__x_pending_message_alerts';
   static const String dismissedMessageAlertIdsKey =
       '__x_dismissed_message_alert_ids';
+  static const String pendingPushTokenKey = '__x_pending_push_token';
 
   /// Default TTL before a cached session is refreshed from the network.
   static const Duration defaultSessionCacheTtl = Duration(hours: 24);

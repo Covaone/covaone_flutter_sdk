@@ -14,6 +14,7 @@ import '../data/repositories/chat_repository.dart';
 import '../data/repositories/faq_repository.dart';
 import '../services/audio_service.dart';
 import '../services/app_api_error_service.dart';
+import '../services/push_token_service.dart';
 import '../services/socket_service.dart';
 import '../services/turn_ice_service.dart';
 import '../services/webrtc_service.dart';
@@ -61,6 +62,12 @@ abstract final class CovaoneDI {
         () => BroadcastRepository(apiClient: sl()));
     sl.registerLazySingleton<FaqRepository>(
         () => FaqRepository(apiClient: sl()));
+    sl.registerLazySingleton<PushTokenService>(
+      () => PushTokenService(
+        chatRepository: sl(),
+        sessionStorage: sl(),
+      ),
+    );
 
     // ── BLoCs ────────────────────────────────────────────────────────────────
     // Registered as singletons so BLoC state survives widget rebuilds.

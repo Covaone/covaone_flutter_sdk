@@ -17,6 +17,7 @@ A production-grade, BLoC-based Flutter SDK that embeds a full-featured customer-
 | 😀 Emoji picker | 180-emoji picker with text insertion |
 | 🌐 Platform support | iOS, Android, Web |
 | 🚨 Host API issue prompts | Captures host-app API failures and shows a top support prompt |
+| 🔔 Push registration | Host-owned FCM token → `registerPushToken` → merchant Firebase delivery |
 
 ---
 
@@ -229,6 +230,52 @@ await CovaoneChat.pushUserProfile(
 
 ---
 
+## Push notifications (host-owned Firebase)
+
+Covaone delivers chat/call pushes **through your Firebase project**. Upload your Firebase service-account JSON in the Covaone dashboard (Integrations → Mobile Push). Your app registers the device token with the SDK.
+
+### Host app Firebase
+
+Add `firebase_core` + `firebase_messaging` to **your** app. Configure Android `google-services.json` and iOS APNs in the Firebase console.
+
+### Register the token
+
+```dart
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:covaone_sdk/covaone_chat.dart';
+
+Future<void> setupCovaonePush() async {
+  final messaging = FirebaseMessaging.instance;
+  await messaging.requestPermission();
+
+  final token = await messaging.getToken();
+  if (token != null) {
+    await CovaoneChat.registerPushToken(token);
+  }
+
+  FirebaseMessaging.instance.onTokenRefresh.listen((token) {
+    CovaoneChat.registerPushToken(token);
+  });
+
+  final initial = await messaging.getInitialMessage();
+  if (initial != null) {
+    CovaoneChat.handleNotificationTap(initial.data);
+  }
+  FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    CovaoneChat.handleNotificationTap(message.data);
+  });
+}
+```
+
+Call after `CovaoneChat.init` (and ideally after `pushUserProfile`). The SDK queues the token and posts to `POST /register-device` once a profiled session exists.
+
+| `data.type` | Meaning |
+|-------------|---------|
+| `chat_reply` | Support agent sent a chat message |
+| `incoming_call` | Agent started a voice call |
+
+---
+
 ## Programmatic API
 
 All methods are static on `CovaoneChat`.
@@ -283,6 +330,13 @@ await CovaoneChat.pushUserProfile(
 // Short aliases (same behavior)
 await CovaoneChat.push(email: 'jane@example.com', fullName: 'Jane Doe');
 await CovaoneChat.sync();
+```
+
+### Push token
+
+```dart
+await CovaoneChat.registerPushToken(fcmToken);
+CovaoneChat.handleNotificationTap(message.data);
 ```
 
 ### Host-app API monitoring

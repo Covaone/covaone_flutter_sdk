@@ -68,6 +68,28 @@ class ApiClient {
     return _unwrap(response);
   }
 
+  /// Registers an FCM device token for the identified customer session.
+  Future<Map<String, dynamic>> registerDevice({
+    required String sessionId,
+    required String fcmToken,
+    String? platform,
+    String? deviceId,
+    String? appBundleId,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      'register-device',
+      data: {
+        'session_id': sessionId,
+        'fcm_token': fcmToken,
+        if (platform != null && platform.isNotEmpty) 'platform': platform,
+        if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
+        if (appBundleId != null && appBundleId.isNotEmpty)
+          'app_bundle_id': appBundleId,
+      },
+    );
+    return _unwrap(response);
+  }
+
   // ── Broadcasts ────────────────────────────────────────────────────────────
 
   Future<dynamic> getBroadcasts(String sessionId) async {
