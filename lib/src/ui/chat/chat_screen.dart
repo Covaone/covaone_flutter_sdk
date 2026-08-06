@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/di.dart';
 import '../shared/shimmer_line.dart';
 import '../shared/covaone_app_bar.dart';
+import '../shared/covaone_theme.dart';
 import 'widgets/closed_conversation_banner.dart';
 import 'widgets/lead_capture_form.dart';
 import 'widgets/message_input_bar.dart';
@@ -116,8 +117,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           (curr is SessionProfileFormVisible && curr.profileError != null) ||
           (prev is! SessionProfileFormVisible &&
               curr is SessionProfileFormVisible &&
-              _hasHostedUserProfile),
+              _hasHostedUserProfile) ||
+          (curr is SessionLoaded &&
+              curr.actionError != null &&
+              (prev is! SessionLoaded ||
+                  prev.actionError != curr.actionError)),
       listener: (context, state) {
+        if (state is SessionLoaded && state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.actionError!)),
+          );
+          return;
+        }
         if (state is SessionProfileFormVisible) {
           if (state.profileError != null) {
             // Release the per-session guard so the fallback lead form can
@@ -134,6 +145,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       child: BlocBuilder<SessionBloc, SessionState>(
         builder: (context, sessionState) {
           final themeColor = sessionState.themeColor;
+          final isConversationOpen = sessionState is SessionLoaded &&
+              sessionState.session.isOpen;
 
           return Scaffold(
             backgroundColor: Colors.white,
@@ -141,6 +154,36 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               title: 'Messages',
               onBack: () =>
                   context.read<ChatBloc>().add(const CloseChatEvent()),
+              actions: isConversationOpen
+                  ? [
+                      PopupMenuButton<_ChatMenuAction>(
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          size: 22,
+                          color: Color(0xFF333333),
+                        ),
+                        padding: EdgeInsets.zero,
+                        offset: const Offset(0, 40),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        onSelected: (action) {
+                          if (action == _ChatMenuAction.closeConversation) {
+                            _confirmCloseConversation(context);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: _ChatMenuAction.closeConversation,
+                            child: Text(
+                              'Close conversation',
+                              style: CovaoneTheme.bodyStyle(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ]
+                  : null,
             ),
             body: BlocConsumer<ChatBloc, ChatState>(
               listenWhen: (prev, curr) =>
@@ -212,7 +255,38 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       ),
     );
   }
+
+  Future<void> _confirmCloseConversation(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Close conversation?', style: CovaoneTheme.subheadStyle()),
+        content: Text(
+          'You won’t be able to send more messages in this conversation.',
+          style: CovaoneTheme.bodyStyle(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: CovaoneTheme.bodyStyle()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Close',
+              style: CovaoneTheme.bodyStyle(color: const Color(0xFFB91C1C)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      context.read<SessionBloc>().add(const CloseConversationEvent());
+    }
+  }
 }
+
+enum _ChatMenuAction { closeConversation }
 
 // ── Chat loading shimmer ──────────────────────────────────────────────────────
 

@@ -21,6 +21,9 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   /// Retained for [NewConversationEvent] / [SetProfileEvent] to re-use.
   String? _publicKey;
 
+  /// Guards against duplicate [CloseConversationEvent] while a request is in flight.
+  bool _isClosing = false;
+
   SessionBloc({
     required ChatRepository chatRepository,
     required SessionStorage sessionStorage,
@@ -36,6 +39,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     on<GetSessionEvent>(_onGetSession);
     on<SetProfileEvent>(_onSetProfile);
     on<NewConversationEvent>(_onNewConversation);
+    on<CloseConversationEvent>(_onCloseConversation);
     on<RefreshSessionIfStaleEvent>(_onRefreshIfStale);
     on<UpdateSessionMessagesEvent>(_onUpdateMessages);
     on<SyncSessionStatusEvent>(_onSyncStatus);
@@ -200,6 +204,39 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
       add(GetSessionEvent(sessionId: sessionId));
     } catch (e) {
       emit(SessionError(message: _message(e)));
+    }
+  }
+
+  Future<void> _onCloseConversation(
+      CloseConversationEvent event, Emitter<SessionState> emit) async {
+    final current = state;
+    if (current is! SessionLoaded) return;
+    if (!current.session.isOpen || _isClosing) return;
+
+    final sessionId = current.session.sessionId;
+    final initials = current.initials;
+    final themeColor = current.themeColor;
+
+    _isClosing = true;
+    try {
+      final closed = await _chatRepository.closeSession(sessionId);
+      _socketService.disconnect();
+      emit(SessionLoaded(
+        session: closed.copyWith(
+          status: closed.isOpen ? 'closed' : closed.status,
+        ),
+        initials: initials,
+        themeColor: themeColor,
+      ));
+    } catch (e) {
+      emit(SessionLoaded(
+        session: current.session,
+        initials: initials,
+        themeColor: themeColor,
+        actionError: _message(e),
+      ));
+    } finally {
+      _isClosing = false;
     }
   }
 

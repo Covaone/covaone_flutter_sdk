@@ -51,6 +51,13 @@ class ChatRepository {
     return getSession(sessionId);
   }
 
+  /// Calls `POST /close-session` and returns the updated [SessionModel].
+  Future<SessionModel> closeSession(String sessionId) async {
+    await _apiClient.closeSession(sessionId);
+    // Re-fetch so status / messages reflect the closed conversation.
+    return getSession(sessionId);
+  }
+
   /// Calls `POST /register-device` with the host app's FCM token.
   Future<void> registerDevice({
     required String sessionId,

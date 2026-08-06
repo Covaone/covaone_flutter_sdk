@@ -33,14 +33,19 @@ class SessionLoaded extends SessionState {
   @override
   final Color themeColor;
 
+  /// Transient error from an in-chat action (e.g. close conversation). Cleared
+  /// on the next successful emit of this state.
+  final String? actionError;
+
   const SessionLoaded({
     required this.session,
     required this.initials,
     required this.themeColor,
+    this.actionError,
   });
 
   @override
-  List<Object?> get props => [session, initials, themeColor];
+  List<Object?> get props => [session, initials, themeColor, actionError];
 }
 
 /// The user has not yet set their email — the profile form must be shown.

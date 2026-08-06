@@ -68,6 +68,15 @@ class ApiClient {
     return _unwrap(response);
   }
 
+  /// Ends an active conversation/session on the server.
+  Future<Map<String, dynamic>> closeSession(String sessionId) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      'close-session',
+      data: {'session_id': sessionId},
+    );
+    return _unwrap(response);
+  }
+
   /// Registers an FCM device token for the identified customer session.
   Future<Map<String, dynamic>> registerDevice({
     required String sessionId,

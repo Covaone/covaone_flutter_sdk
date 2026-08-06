@@ -46,6 +46,11 @@ class NewConversationEvent extends SessionEvent {
   const NewConversationEvent();
 }
 
+/// Ends the active conversation via `POST /close-session`.
+class CloseConversationEvent extends SessionEvent {
+  const CloseConversationEvent();
+}
+
 /// Refreshes the active session from the network only when the cached copy is
 /// older than [CovaoneConfig.sessionCacheTtl].
 class RefreshSessionIfStaleEvent extends SessionEvent {
