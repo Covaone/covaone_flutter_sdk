@@ -7,7 +7,7 @@ import '../../core/config.dart';
 import '../../core/di.dart';
 import '../shared/shimmer_line.dart';
 import '../shared/covaone_app_bar.dart';
-import '../shared/covaone_theme.dart';
+import 'widgets/chat_overflow_menu.dart';
 import 'widgets/closed_conversation_banner.dart';
 import 'widgets/lead_capture_form.dart';
 import 'widgets/message_input_bar.dart';
@@ -156,31 +156,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   context.read<ChatBloc>().add(const CloseChatEvent()),
               actions: isConversationOpen
                   ? [
-                      PopupMenuButton<_ChatMenuAction>(
-                        icon: const Icon(
-                          Icons.more_vert_rounded,
-                          size: 22,
-                          color: Color(0xFF333333),
-                        ),
-                        padding: EdgeInsets.zero,
-                        offset: const Offset(0, 40),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        onSelected: (action) {
-                          if (action == _ChatMenuAction.closeConversation) {
-                            _confirmCloseConversation(context);
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: _ChatMenuAction.closeConversation,
-                            child: Text(
-                              'Close conversation',
-                              style: CovaoneTheme.bodyStyle(),
-                            ),
-                          ),
-                        ],
+                      ChatOverflowMenu(
+                        themeColor: themeColor,
+                        onCloseConversation: () =>
+                            _confirmCloseConversation(context, themeColor),
                       ),
                     ]
                   : null,
@@ -256,37 +235,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _confirmCloseConversation(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Close conversation?', style: CovaoneTheme.subheadStyle()),
-        content: Text(
-          'You won’t be able to send more messages in this conversation.',
-          style: CovaoneTheme.bodyStyle(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: CovaoneTheme.bodyStyle()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Close',
-              style: CovaoneTheme.bodyStyle(color: const Color(0xFFB91C1C)),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _confirmCloseConversation(
+    BuildContext context,
+    Color themeColor,
+  ) async {
+    final confirmed = await showCloseConversationSheet(
+      context,
+      themeColor: themeColor,
     );
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       context.read<SessionBloc>().add(const CloseConversationEvent());
     }
   }
 }
-
-enum _ChatMenuAction { closeConversation }
 
 // ── Chat loading shimmer ──────────────────────────────────────────────────────
 
